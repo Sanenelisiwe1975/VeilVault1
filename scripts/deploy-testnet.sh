@@ -40,9 +40,10 @@ cargo build --release --target wasm32-unknown-unknown -p agent-registry
 cargo build --release --target wasm32-unknown-unknown -p strategy-marketplace
 cargo build --release --target wasm32-unknown-unknown -p stokvel-vault
 cargo build --release --target wasm32-unknown-unknown -p zk-attestation
+cargo build --release --target wasm32-unknown-unknown -p privacy-pool
 
 # Optimize WASM binaries
-for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation; do
+for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation privacy_pool; do
   WASM="target/wasm32-unknown-unknown/release/${contract}.wasm"
   if command -v stellar &>/dev/null; then
     stellar contract optimize --wasm "$WASM" 2>/dev/null || warn "Optimize skipped for $contract"
@@ -209,6 +210,39 @@ stellar contract invoke \
   -- set_agent_registry \
   --registry "$REGISTRY_ID"
 
+# Wire zk-attestation into agent-registry for selective-disclosure attribute proofs
+stellar contract invoke \
+  --id "$REGISTRY_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- set_zk_verifier \
+  --zk_verifier "$ZK_ID"
+info "agent-registry: zk verifier wired."
+
+# Deploy privacy-pool (10 USDC denomination)
+info "Deploying privacy-pool..."
+POOL_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/privacy_pool.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "privacy-pool deployed: $POOL_ID"
+
+stellar contract invoke \
+  --id "$POOL_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- initialize \
+  --admin "$ADMIN_PK" \
+  --asset "$USDC_TESTNET" \
+  --denomination 10000000
+info "privacy-pool initialized (denomination: 10 USDC)."
+
+# NOTE: Call set_verifier on the privacy-pool after registering a withdrawal
+# circuit in the zk-attestation contract:
+#   stellar contract invoke --id $POOL_ID ... -- set_verifier \
+#     --zk_verifier $ZK_ID --withdraw_circuit_id <CIRCUIT_ID_BYTES>
+
 # Write contract IDs to .env
 info "Updating .env with deployed contract IDs..."
 ENV_FILE="$REPO_ROOT/.env"
@@ -229,6 +263,7 @@ update_env "AGENT_REGISTRY_CONTRACT_ID" "$REGISTRY_ID"
 update_env "STRATEGY_MARKETPLACE_CONTRACT_ID" "$MARKETPLACE_ID"
 update_env "STOKVEL_REGISTRY_CONTRACT_ID" "$STOKVEL_ID"
 update_env "ZK_VERIFIER_CONTRACT_ID" "$ZK_ID"
+update_env "PRIVACY_POOL_CONTRACT_ID" "$POOL_ID"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
@@ -242,6 +277,7 @@ info "Agent Registry (KYA):        $REGISTRY_ID"
 info "Strategy Marketplace:        $MARKETPLACE_ID"
 info "Stokvel Vault:               $STOKVEL_ID"
 info "ZK Attestation:              $ZK_ID"
+info "Privacy Pool (10 USDC):      $POOL_ID"
 info "Network:                     $NETWORK"
 info "Admin:                       $ADMIN_PK"
 info ""
