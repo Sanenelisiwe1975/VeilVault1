@@ -100,7 +100,7 @@ pub fn record_spending(env: &Env, amount: i128) {
     storage::add_daily_spending(env, day, amount);
 }
 
-// ── Arithmetic helpers ────────────────────────────────────────────────────────
+// Arithmetic helpers
 
 /// Computes `(a * b) / c` with checked arithmetic.
 pub fn checked_mul_div(a: i128, b: i128, c: i128) -> Result<i128, VaultError> {

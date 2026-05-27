@@ -8,8 +8,6 @@ use soroban_sdk::{
 };
 use storage::{GuardrailsConfig, StrategyType};
 
-// ── Test helpers ──────────────────────────────────────────────────────────────
-
 fn default_guardrails(env: &Env) -> GuardrailsConfig {
     GuardrailsConfig {
         max_drawdown_bps: 5000,          // 50% max single-tx drawdown
@@ -69,8 +67,6 @@ impl TestSetup {
     }
 }
 
-// ── Initialisation tests ──────────────────────────────────────────────────────
-
 #[test]
 fn test_initialize_success() {
     let setup = TestSetup::new();
@@ -91,8 +87,6 @@ fn test_double_initialize_fails() {
         &default_guardrails(&setup.env),
     );
 }
-
-// ── Deposit tests ─────────────────────────────────────────────────────────────
 
 #[test]
 fn test_deposit_mints_shares() {
@@ -119,7 +113,6 @@ fn test_second_deposit_proportional_shares() {
     assert_eq!(setup.vault.get_total_shares(), 300_000_000);
 }
 
-// ── Withdrawal tests ──────────────────────────────────────────────────────────
 
 #[test]
 fn test_withdraw_returns_assets() {
@@ -169,11 +162,11 @@ fn test_time_lock_prevents_immediate_withdrawal() {
     );
 
     vault.deposit(&alice, &100_000_000_i128);
-    // Immediately try to withdraw — should fail
+    // Immediately try to withdraw should fail
     vault.withdraw(&alice, &100_000_000_i128);
 }
 
-// ── Agent & position tests ────────────────────────────────────────────────────
+// Agent & position tests
 
 #[test]
 #[should_panic(expected = "AgentNotAuthorized")]
@@ -220,7 +213,7 @@ fn test_add_and_use_agent() {
     assert_eq!(setup.vault.get_position_count(), 1);
 }
 
-// ── Guardrail tests ───────────────────────────────────────────────────────────
+// Guardrail tests
 
 #[test]
 #[should_panic(expected = "DrawdownLimitExceeded")]

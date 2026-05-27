@@ -50,7 +50,7 @@ export class AgentHelper {
     });
   }
 
-  // ── dWallet management ────────────────────────────────────────────────────
+  //dWallet management
 
   /** Create a new Ika dWallet and register it on-chain. */
   async createDWallet(params: {
@@ -94,7 +94,7 @@ export class AgentHelper {
     await this.http.delete(`/api/agents/dwallet/${dwalletId}`);
   }
 
-  // ── x402 Payment utilities ────────────────────────────────────────────────
+  // x402 Payment utilities
 
   /**
    * Submit a Stellar transaction hash to verify a payment.
@@ -164,7 +164,7 @@ export class AgentHelper {
     };
   }
 
-  // ── Agent introspection ───────────────────────────────────────────────────
+  //Agent introspection
 
   /**
    * Returns a structured description of VeilVault1 capabilities

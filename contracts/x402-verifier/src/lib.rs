@@ -15,8 +15,7 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
-
+//Error
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -31,7 +30,7 @@ pub enum X402Error {
     DuplicatePayment   = 8,
 }
 
-// ── Storage types ─────────────────────────────────────────────────────────────
+// Storage types
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -79,7 +78,7 @@ pub struct Config {
 const INSTANCE_TTL: u32 = 1_000_000;
 const PAYMENT_TTL: u32  = 500_000;
 
-// ── Contract ──────────────────────────────────────────────────────────────────
+// Contract
 
 #[contract]
 pub struct X402VerifierContract;
@@ -170,8 +169,6 @@ impl X402VerifierContract {
         Ok(())
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
-
     pub fn is_verified(env: Env, payment_id: String) -> bool {
         let key = DataKey::Payment(payment_id);
         matches!(
@@ -200,7 +197,6 @@ impl X402VerifierContract {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {

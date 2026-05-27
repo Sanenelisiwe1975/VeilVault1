@@ -40,6 +40,11 @@ pub struct VaultConfig {
     pub x402_verifier: Option<Address>,
     /// Optional address of the dwallet-verifier contract
     pub dwallet_verifier: Option<Address>,
+    /// Optional address of the agent-registry contract (KYA / reputation)
+    pub agent_registry: Option<Address>,
+    /// Minimum reputation level (0=Unverified, 1=Verified, 2=Trusted, 3=Elite)
+    /// required for an agent to be added. Default 0 = any.
+    pub min_agent_level: u32,
 }
 
 #[contracttype]
@@ -102,7 +107,7 @@ pub enum DataKey {
     DailySpending(u64), // keyed by unix-day (timestamp / 86400)
 }
 
-// ── Instance storage helpers ──────────────────────────────────────────────────
+// Instance storage helpers
 
 pub fn has_vault_config(env: &Env) -> bool {
     env.storage().instance().has(&DataKey::VaultConfig)
@@ -168,7 +173,7 @@ pub fn next_position_id(env: &Env) -> u64 {
     id
 }
 
-// ── Persistent storage helpers ────────────────────────────────────────────────
+// Persistent storage helpers
 
 pub fn get_balance(env: &Env, address: &Address) -> i128 {
     let key = DataKey::Balance(address.clone());
@@ -239,7 +244,7 @@ pub fn set_position(env: &Env, position: &Position) {
         .extend_ttl(&key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_BUMP);
 }
 
-// ── Temporary storage helpers ─────────────────────────────────────────────────
+//Temporary storage helper
 
 pub fn get_daily_spending(env: &Env, day: u64) -> i128 {
     let key = DataKey::DailySpending(day);

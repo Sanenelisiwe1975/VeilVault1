@@ -13,7 +13,7 @@ use soroban_sdk::{
 use error::VaultError;
 use storage::{GuardrailsConfig, Position, StrategyType, VaultConfig};
 
-// ── External contract interfaces ──────────────────────────────────────────────
+// External contract interfaces
 
 mod x402_verifier {
     soroban_sdk::contractimport!(
@@ -27,14 +27,20 @@ mod dwallet_verifier {
     );
 }
 
-// ── Contract ──────────────────────────────────────────────────────────────────
+mod agent_registry {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/agent_registry.wasm"
+    );
+}
+
+// Contract
 
 #[contract]
 pub struct VaultContract;
 
 #[contractimpl]
 impl VaultContract {
-    // ── Initialisation ────────────────────────────────────────────────────────
+    // Initialisation
 
     /// Create and configure the vault. Can only be called once.
     pub fn initialize(
@@ -57,6 +63,8 @@ impl VaultContract {
             paused: false,
             x402_verifier: None,
             dwallet_verifier: None,
+            agent_registry: None,
+            min_agent_level: 0,
         };
         storage::set_vault_config(&env, &config);
         storage::set_total_shares(&env, 0);
@@ -67,7 +75,7 @@ impl VaultContract {
         Ok(())
     }
 
-    // ── Deposits & Withdrawals ────────────────────────────────────────────────
+    // Deposits & Withdrawals
 
     /// Deposit `amount` of the vault asset; returns shares minted.
     pub fn deposit(env: Env, from: Address, amount: i128) -> Result<i128, VaultError> {
@@ -149,7 +157,7 @@ impl VaultContract {
         Ok(assets)
     }
 
-    // ── Position management (agents) ──────────────────────────────────────────
+    // Position management (agents)
 
     /// Open a yield/strategy position. Transfers `amount` from vault to `protocol`.
     ///
@@ -239,17 +247,46 @@ impl VaultContract {
         let new_total = total_assets.checked_add(pnl).ok_or(VaultError::ArithmeticOverflow)?;
         storage::set_total_assets(&env, new_total);
 
+        // Update agent reputation on registry (best-effort; non-blocking)
+        if let Some(registry_addr) = &config.agent_registry {
+            let registry = agent_registry::Client::new(&env, registry_addr);
+            // Compute return in bps relative to deployed amount
+            let return_bps = if pos.amount > 0 {
+                (pnl * 10_000) / pos.amount
+            } else {
+                0
+            };
+            if pnl >= 0 {
+                // record_success(agent, return_bps)
+                registry.record_success(&agent, &(return_bps as u32));
+            } else {
+                // record_failure(agent)
+                registry.record_failure(&agent);
+            }
+        }
+
         events::emit_position_closed(&env, position_id, &agent, return_amount, pnl);
         Ok(pnl)
     }
 
-    // ── Agent management ──────────────────────────────────────────────────────
+    // Agent management
 
     pub fn add_agent(env: Env, agent: Address) -> Result<(), VaultError> {
         let config = Self::require_admin(&env)?;
         if storage::is_authorized_agent(&env, &agent) {
             return Err(VaultError::AgentAlreadyAuthorized);
         }
+
+        // Enforce minimum reputation level if registry is wired
+        if let Some(registry_addr) = &config.agent_registry {
+            if config.min_agent_level > 0 {
+                let registry = agent_registry::Client::new(&env, registry_addr);
+                if !registry.meets_minimum_level(&agent, &config.min_agent_level) {
+                    return Err(VaultError::AgentNotAuthorized);
+                }
+            }
+        }
+
         storage::set_agent_authorization(&env, &agent, true);
         events::emit_agent_added(&env, &config.admin, &agent);
         Ok(())
@@ -265,7 +302,7 @@ impl VaultContract {
         Ok(())
     }
 
-    // ── Guardrails & administration ───────────────────────────────────────────
+    // Guardrails & administration
 
     pub fn update_guardrails(env: Env, new_guardrails: GuardrailsConfig) -> Result<(), VaultError> {
         let mut config = Self::require_admin(&env)?;
@@ -306,6 +343,50 @@ impl VaultContract {
         Ok(())
     }
 
+    pub fn set_agent_registry(env: Env, registry: Address) -> Result<(), VaultError> {
+        let mut config = Self::require_admin(&env)?;
+        config.agent_registry = Some(registry);
+        storage::set_vault_config(&env, &config);
+        Ok(())
+    }
+
+    pub fn set_min_agent_level(env: Env, level: u32) -> Result<(), VaultError> {
+        if level > 3 {
+            return Err(VaultError::InvalidStrategyType); // reuse error for out-of-range
+        }
+        let mut config = Self::require_admin(&env)?;
+        config.min_agent_level = level;
+        storage::set_vault_config(&env, &config);
+        Ok(())
+    }
+
+    /// Allow an authorized agent to hand off a sub-task to a delegate agent.
+    /// The delegate must also be authorized in this vault, ensuring both agents
+    /// have passed minimum-level checks. Emits an event for off-chain orchestration.
+    pub fn delegate_operation(
+        env: Env,
+        orchestrator: Address,
+        delegate: Address,
+        operation_id: BytesN<32>,
+        metadata: Bytes,
+    ) -> Result<(), VaultError> {
+        orchestrator.require_auth();
+        Self::require_active(&env)?;
+
+        if !storage::is_authorized_agent(&env, &orchestrator) {
+            return Err(VaultError::AgentNotAuthorized);
+        }
+        if !storage::is_authorized_agent(&env, &delegate) {
+            return Err(VaultError::AgentNotAuthorized);
+        }
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("delegate"), soroban_sdk::symbol_short!("op")),
+            (operation_id, orchestrator, delegate, metadata),
+        );
+        Ok(())
+    }
+
     /// Upgrade the contract WASM (admin-only).
     pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) -> Result<(), VaultError> {
         let config = Self::require_admin(&env)?;
@@ -314,7 +395,7 @@ impl VaultContract {
         Ok(())
     }
 
-    // ── View methods ──────────────────────────────────────────────────────────
+    // View methods
 
     pub fn get_vault_info(env: Env) -> Result<VaultConfig, VaultError> {
         if !storage::has_vault_config(&env) {
@@ -370,7 +451,7 @@ impl VaultContract {
         storage::is_authorized_agent(&env, &agent)
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    // Internal helpers
 
     fn require_active(env: &Env) -> Result<VaultConfig, VaultError> {
         if !storage::has_vault_config(env) {

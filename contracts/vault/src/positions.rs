@@ -4,7 +4,7 @@ use crate::storage::{self, Position, StrategyType};
 
 /// Open a new position. Returns the new position ID.
 ///
-/// Does NOT transfer tokens — the caller (lib.rs) handles the transfer and
+/// Does NOT transfer tokens the caller (lib.rs) handles the transfer and
 /// deployed-assets accounting before/after calling this.
 pub fn open(
     env: &Env,
@@ -36,7 +36,7 @@ pub fn open(
 
 /// Close an existing position and return the PnL (may be negative).
 ///
-/// Does NOT transfer tokens — the caller handles the transfer.
+/// Does NOT transfer tokens the caller handles the transfer.
 pub fn close(
     env: &Env,
     position_id: u64,

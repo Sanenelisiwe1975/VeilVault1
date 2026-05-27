@@ -25,7 +25,7 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, Vec,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
+// Errors
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -50,7 +50,6 @@ pub enum StokvelError {
     ContributionNotDue     = 17,
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -162,14 +161,13 @@ const MEMBER_TTL: u32    = 1_000_000;
 const PROPOSAL_TTL: u32  = 200_000;
 const PROPOSAL_EXPIRY: u64 = 7 * 24 * 3600; // 7 days
 
-// ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct StokvelVaultContract;
 
 #[contractimpl]
 impl StokvelVaultContract {
-    // ── Initialisation ────────────────────────────────────────────────────────
+    // Initialisation
 
     pub fn initialize(
         env: Env,
@@ -225,7 +223,7 @@ impl StokvelVaultContract {
         Ok(())
     }
 
-    // ── Membership ────────────────────────────────────────────────────────────
+    // Membership 
 
     /// Join the stokvel (if open) or be added via approved proposal.
     pub fn join(env: Env, applicant: Address) -> Result<(), StokvelError> {
@@ -242,7 +240,7 @@ impl StokvelVaultContract {
         Ok(())
     }
 
-    // ── Contributions ─────────────────────────────────────────────────────────
+    // Contributions
 
     /// Member contributes funds to the pool.
     ///
@@ -311,7 +309,7 @@ impl StokvelVaultContract {
         Ok(actual_amount)
     }
 
-    // ── Proposals ─────────────────────────────────────────────────────────────
+    // Proposals
 
     /// Any member can create a proposal.
     pub fn propose(
@@ -487,7 +485,7 @@ impl StokvelVaultContract {
         Ok(())
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
+    // Views
 
     pub fn get_stokvel_info(env: Env) -> Result<StokvelConfig, StokvelError> {
         Self::get_config(&env)
@@ -519,7 +517,7 @@ impl StokvelVaultContract {
             .unwrap_or(Vec::new(&env))
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
+    // Internal
 
     fn get_config(env: &Env) -> Result<StokvelConfig, StokvelError> {
         env.storage().instance()
@@ -653,7 +651,7 @@ impl StokvelVaultContract {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod test {

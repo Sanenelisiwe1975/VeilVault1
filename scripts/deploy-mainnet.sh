@@ -21,7 +21,7 @@ NETWORK="mainnet"
 
 [[ -z "${ADMIN_SECRET_KEY:-}" ]] && error "ADMIN_SECRET_KEY not set"
 
-# ── Safety prompt ─────────────────────────────────────────────────────────────
+# Safety prompt
 echo -e "${RED}"
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║           ⚠  MAINNET DEPLOYMENT — ARE YOU SURE?  ⚠          ║"
@@ -37,7 +37,7 @@ echo -e "${NC}"
 read -p "Type 'deploy mainnet' to confirm: " CONFIRM
 [[ "$CONFIRM" != "deploy mainnet" ]] && error "Deployment cancelled."
 
-# ── Pre-deployment checks ─────────────────────────────────────────────────────
+# Predeployment checks
 info "Running pre-deployment checks..."
 
 # Ensure testnet deployment IDs exist (proof of testnet testing)
@@ -48,13 +48,13 @@ info "Running pre-deployment checks..."
 cargo build --release --target wasm32-unknown-unknown -p vault --dry-run &>/dev/null || \
   error "Build check failed. Fix compilation errors first."
 
-# ── Build with release profile ────────────────────────────────────────────────
+# Build with release profile
 info "Building contracts for mainnet (release)..."
 cd "$CONTRACTS_DIR"
 
 cargo build --profile release --target wasm32-unknown-unknown
 
-for contract in vault x402_verifier dwallet_verifier; do
+for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation; do
   stellar contract optimize \
     --wasm "target/wasm32-unknown-unknown/release/${contract}.wasm"
 done
@@ -67,7 +67,7 @@ info "Admin public key: $ADMIN_PK"
 read -p "Confirm this is correct (y/N): " CONFIRM_KEY
 [[ "$CONFIRM_KEY" != "y" ]] && error "Cancelled."
 
-# ── Deploy ────────────────────────────────────────────────────────────────────
+# Deploy
 info "Deploying x402-verifier to mainnet..."
 X402_ID=$(stellar contract deploy \
   --wasm "target/wasm32-unknown-unknown/release/x402_verifier.wasm" \
@@ -95,13 +95,50 @@ VAULT_ID=$(stellar contract deploy \
   --network "$NETWORK")
 info "Vault: $VAULT_ID"
 
-# Wire up verifiers
+info "Deploying agent-registry to mainnet..."
+REGISTRY_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/agent_registry.wasm" \
+  --source admin \
+  --network "$NETWORK")
+info "agent-registry: $REGISTRY_ID"
+stellar contract invoke --id "$REGISTRY_ID" --source admin --network "$NETWORK" \
+  -- initialize --admin "$ADMIN_PK"
+
+info "Deploying strategy-marketplace to mainnet..."
+MARKETPLACE_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/strategy_marketplace.wasm" \
+  --source admin \
+  --network "$NETWORK")
+info "strategy-marketplace: $MARKETPLACE_ID"
+stellar contract invoke --id "$MARKETPLACE_ID" --source admin --network "$NETWORK" \
+  -- initialize --admin "$ADMIN_PK" --platform_treasury "$ADMIN_PK" \
+  --platform_fee_bps 200 --agent_registry "$REGISTRY_ID"
+
+info "Deploying stokvel-vault to mainnet..."
+STOKVEL_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/stokvel_vault.wasm" \
+  --source admin \
+  --network "$NETWORK")
+info "stokvel-vault: $STOKVEL_ID"
+
+info "Deploying zk-attestation to mainnet..."
+ZK_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/zk_attestation.wasm" \
+  --source admin \
+  --network "$NETWORK")
+info "zk-attestation: $ZK_ID"
+stellar contract invoke --id "$ZK_ID" --source admin --network "$NETWORK" \
+  -- initialize --admin "$ADMIN_PK"
+
+# Wire up verifiers and registry
 stellar contract invoke --id "$VAULT_ID" --source admin --network "$NETWORK" \
   -- set_x402_verifier --verifier "$X402_ID"
 stellar contract invoke --id "$VAULT_ID" --source admin --network "$NETWORK" \
   -- set_dwallet_verifier --verifier "$DWALLET_ID"
+stellar contract invoke --id "$VAULT_ID" --source admin --network "$NETWORK" \
+  -- set_agent_registry --registry "$REGISTRY_ID"
 
-# ── Record deployment ─────────────────────────────────────────────────────────
+# Record deployment 
 DEPLOY_LOG="$REPO_ROOT/deployments/mainnet-$(date +%Y%m%d-%H%M%S).json"
 mkdir -p "$REPO_ROOT/deployments"
 cat > "$DEPLOY_LOG" <<EOF
@@ -111,18 +148,26 @@ cat > "$DEPLOY_LOG" <<EOF
   "vault": "$VAULT_ID",
   "x402Verifier": "$X402_ID",
   "dwalletVerifier": "$DWALLET_ID",
+  "agentRegistry": "$REGISTRY_ID",
+  "strategyMarketplace": "$MARKETPLACE_ID",
+  "stokvelVault": "$STOKVEL_ID",
+  "zkAttestation": "$ZK_ID",
   "admin": "$ADMIN_PK"
 }
 EOF
 info "Deployment recorded: $DEPLOY_LOG"
 
 echo ""
-info "═══════════════════════════════════════════════════"
+info "═══════════════════════════════════════════════════════════════"
 info "VeilVault1 Mainnet Deployment Complete"
-info "═══════════════════════════════════════════════════"
-info "Vault:           $VAULT_ID"
-info "x402 Verifier:   $X402_ID"
-info "dWallet Verifier: $DWALLET_ID"
+info "═══════════════════════════════════════════════════════════════"
+info "Vault:               $VAULT_ID"
+info "x402 Verifier:       $X402_ID"
+info "dWallet Verifier:    $DWALLET_ID"
+info "Agent Registry:      $REGISTRY_ID"
+info "Strategy Marketplace: $MARKETPLACE_ID"
+info "Stokvel Vault:       $STOKVEL_ID"
+info "ZK Attestation:      $ZK_ID"
 info ""
 info "https://stellar.expert/explorer/public/contract/$VAULT_ID"
-info "═══════════════════════════════════════════════════"
+info "═══════════════════════════════════════════════════════════════"

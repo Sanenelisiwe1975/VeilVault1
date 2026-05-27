@@ -17,8 +17,6 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -33,7 +31,6 @@ pub enum DWalletError {
     InvalidPublicKey    = 8,
 }
 
-// ── Storage types ─────────────────────────────────────────────────────────────
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -67,8 +64,6 @@ pub struct Config {
 
 const INSTANCE_TTL: u32  = 1_000_000;
 const DWALLET_TTL: u32   = 1_000_000;
-
-// ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct DWalletVerifierContract;
@@ -195,7 +190,7 @@ impl DWalletVerifierContract {
         Self::verify_signature(env, dwallet_id, message, signature)
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
+    // Views
 
     pub fn get_dwallet(env: Env, dwallet_id: String) -> Result<DWalletInfo, DWalletError> {
         env.storage()
@@ -231,7 +226,7 @@ impl DWalletVerifierContract {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod test {

@@ -19,8 +19,6 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, Vec,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -38,8 +36,6 @@ pub enum MarketplaceError {
     ArithmeticOverflow    = 11,
     InvalidRiskLevel      = 12,
 }
-
-// ── Types ─────────────────────────────────────────────────────────────────────
 
 /// Strategy risk classification.
 #[contracttype]
@@ -65,7 +61,7 @@ pub enum StrategyCategory {
     Other               = 6,
 }
 
-/// On-chain listing for a published strategy.
+/// Onchain listing for a published strategy.
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StrategyListing {
@@ -127,8 +123,6 @@ const INSTANCE_TTL: u32  = 1_000_000;
 const STRATEGY_TTL: u32  = 1_000_000;
 const MAX_PLATFORM_FEE: u32 = 2_000; // 20% max
 
-// ── Contract ──────────────────────────────────────────────────────────────────
-
 #[contract]
 pub struct StrategyMarketplaceContract;
 
@@ -159,7 +153,7 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Strategy publication ──────────────────────────────────────────────────
+    //Strategy publication
 
     /// Developer publishes a new strategy.
     pub fn publish_strategy(
@@ -242,7 +236,7 @@ impl StrategyMarketplaceContract {
         Ok(strategy_id)
     }
 
-    // ── Strategy execution ────────────────────────────────────────────────────
+    //   Strategy execution
 
     /// Agent executes a strategy.
     ///
@@ -322,7 +316,7 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Admin actions ─────────────────────────────────────────────────────────
+    // Admin actions
 
     /// Mark a strategy as audited and record the audit report hash.
     pub fn audit_strategy(
@@ -363,7 +357,7 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
+    // Views
 
     pub fn get_strategy_info(env: Env, strategy_id: BytesN<32>) -> Result<StrategyListing, MarketplaceError> {
         Self::get_strategy(&env, &strategy_id)
@@ -379,7 +373,7 @@ impl StrategyMarketplaceContract {
             .unwrap_or(0)
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
+    // Internal
 
     fn get_config(env: &Env) -> Result<MarketplaceConfig, MarketplaceError> {
         env.storage().instance()
@@ -430,7 +424,7 @@ impl StrategyMarketplaceContract {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod test {

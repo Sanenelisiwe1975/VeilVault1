@@ -17,6 +17,10 @@ const EnvSchema = z.object({
   VAULT_CONTRACT_ID: z.string().optional(),
   X402_VERIFIER_CONTRACT_ID: z.string().optional(),
   DWALLET_VERIFIER_CONTRACT_ID: z.string().optional(),
+  AGENT_REGISTRY_CONTRACT_ID: z.string().optional(),
+  STRATEGY_MARKETPLACE_CONTRACT_ID: z.string().optional(),
+  STOKVEL_REGISTRY_CONTRACT_ID: z.string().optional(),
+  ZK_VERIFIER_CONTRACT_ID: z.string().optional(),
 
   // Admin keypair (secret key for signing admin transactions)
   ADMIN_SECRET_KEY: z.string(),

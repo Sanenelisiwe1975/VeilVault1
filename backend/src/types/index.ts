@@ -218,3 +218,220 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   page: number;
   pageSize: number;
 }
+
+// ── Agent Registry types ──────────────────────────────────────────────────────
+
+export enum ReputationLevel {
+  Unverified = 0,
+  Verified   = 1,
+  Trusted    = 2,
+  Elite      = 3,
+}
+
+export interface AgentProfile {
+  did: string;
+  stellarAddress: string;
+  vcHash: string;
+  vcUri: string;
+  reputationScore: number;       // 0–10000 bps
+  level: ReputationLevel;
+  totalExecutions: bigint;
+  successfulExecutions: bigint;
+  totalVolume: bigint;
+  winStreak: number;
+  banned: boolean;
+  registeredAt: number;
+  updatedAt: number;
+}
+
+// ── Strategy Marketplace types ────────────────────────────────────────────────
+
+export enum StrategyCategory {
+  Lending            = 0,
+  LiquidityProvision = 1,
+  Staking            = 2,
+  Arbitrage          = 3,
+  RWA                = 4,
+  Remittance         = 5,
+}
+
+export interface StrategyListing {
+  strategyId: string;
+  author: string;
+  name: string;
+  description: string;
+  executionFee: bigint;
+  feeAsset: string;
+  isAudited: boolean;
+  auditReportHash: string | null;
+  category: StrategyCategory;
+  minAgentLevel: number;
+  totalExecutions: bigint;
+  successfulExecutions: bigint;
+  totalFeesCollected: bigint;
+  isActive: boolean;
+  createdAt: number;
+}
+
+// ── Stokvel types ─────────────────────────────────────────────────────────────
+
+export enum ProposalType {
+  Distribution  = 0,
+  Withdrawal    = 1,
+  AddMember     = 2,
+  RemoveMember  = 3,
+  EmergencyStop = 4,
+}
+
+export enum ProposalStatus {
+  Active   = 0,
+  Approved = 1,
+  Rejected = 2,
+  Executed = 3,
+  Expired  = 4,
+}
+
+export interface StokvelConfig {
+  admin: string;
+  name: string;
+  asset: string;
+  threshold: number;
+  maxMembers: number;
+  contributionAmount: bigint;
+  contributionIntervalSecs: bigint;
+  yieldVault: string | null;
+  totalContributed: bigint;
+  totalDistributed: bigint;
+  memberCount: number;
+  proposalCount: bigint;
+  paused: boolean;
+}
+
+export interface StokvelMember {
+  address: string;
+  shareBps: number;
+  totalContributed: bigint;
+  lastContribution: number;
+  joinedAt: number;
+}
+
+export interface StokvelProposal {
+  id: bigint;
+  proposer: string;
+  proposalType: ProposalType;
+  status: ProposalStatus;
+  approvals: string[];
+  rejections: string[];
+  targetAddress: string | null;
+  amount: bigint | null;
+  expiresAt: number;
+  createdAt: number;
+  executedAt: number | null;
+}
+
+// ── ZK Attestation types ──────────────────────────────────────────────────────
+
+export interface Groth16Proof {
+  a: string;  // hex, 96 bytes
+  b: string;  // hex, 192 bytes
+  c: string;  // hex, 96 bytes
+}
+
+export interface PerformanceAttestation {
+  attestationId: string;
+  circuitId: string;
+  vault: string;
+  prover: string;
+  strategyCommitment: string;
+  periodStart: number;
+  periodEnd: number;
+  returnBps: number;
+  proof: Groth16Proof;
+  publicInputsHash: string;
+  verified: boolean;
+  timestamp: number;
+}
+
+// ── Multi-Agent types ─────────────────────────────────────────────────────────
+
+export enum AgentRole {
+  Orchestrator = 'orchestrator',
+  Executor     = 'executor',
+  Analyst      = 'analyst',
+  RiskManager  = 'risk_manager',
+}
+
+export enum TaskStatus {
+  Pending   = 'pending',
+  Running   = 'running',
+  Completed = 'completed',
+  Failed    = 'failed',
+  Cancelled = 'cancelled',
+}
+
+export interface AgentTask {
+  taskId: string;
+  orchestrator: string;
+  delegate: string;
+  operationId: string;
+  role: AgentRole;
+  payload: Record<string, unknown>;
+  status: TaskStatus;
+  createdAt: number;
+  completedAt: number | null;
+  result: unknown | null;
+  error: string | null;
+}
+
+export interface WorkflowConfig {
+  workflowId: string;
+  vaultAddress: string;
+  orchestratorAddress: string;
+  agents: { address: string; role: AgentRole; weight: number }[];
+  consensusThreshold: number;
+}
+
+// ── RWA types ─────────────────────────────────────────────────────────────────
+
+export enum RWAType {
+  Invoice      = 'invoice',
+  CarbonCredit = 'carbon_credit',
+  Commodity    = 'commodity',
+  Remittance   = 'remittance',
+  TradeFinance = 'trade_finance',
+}
+
+export interface RWAAsset {
+  assetId: string;
+  type: RWAType;
+  issuer: string;
+  faceValue: bigint;
+  currentValue: bigint;
+  maturityDate: number | null;
+  yieldBps: number;
+  currency: string;
+  region: string;
+  isVerified: boolean;
+  dataFeedUri: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface RemittanceRoute {
+  corridorId: string;
+  sourceCurrency: string;
+  targetCurrency: string;
+  exchangeRate: number;
+  fee: number;
+  estimatedSettlementSecs: number;
+  provider: string;
+  isActive: boolean;
+}
+
+export interface RWAAllocationRecommendation {
+  assetId: string;
+  type: RWAType;
+  recommendedAllocationBps: number;
+  expectedYieldBps: number;
+  riskScore: number;
+  rationale: string;
+}

@@ -37,6 +37,10 @@
 export { VaultClient } from './VaultClient';
 export { StrategyClient } from './StrategyClient';
 export { AgentHelper } from './AgentHelper';
+export { AgentRegistryClient, ReputationLevel } from './AgentRegistryClient';
+export { MarketplaceClient, StrategyCategory } from './MarketplaceClient';
+export { StokvelClient, ProposalType, ProposalStatus } from './StokvelClient';
+export { AttestationClient } from './AttestationClient';
 export { StrategyType } from './types';
 export type {
   SDKConfig,
@@ -54,6 +58,14 @@ export type {
   FHEKeys,
   EncryptedStrategyParams,
 } from './types';
+export type { AgentProfile } from './AgentRegistryClient';
+export type { StrategyListing } from './MarketplaceClient';
+export type { StokvelConfig, MemberInfo, Proposal } from './StokvelClient';
+export type {
+  Groth16Proof,
+  PerformanceAttestation,
+  VerifyingKeyParams,
+} from './AttestationClient';
 
 /** SDK version */
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';

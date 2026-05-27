@@ -25,20 +25,24 @@ fi
 ADMIN_PK=$(stellar keys show admin 2>/dev/null || \
   stellar keys generate --no-fund admin && stellar keys show admin)
 
-# ── Fund testnet account if needed ────────────────────────────────────────────
+# Fund testnet account if needed
 info "Funding admin account on testnet..."
 stellar keys fund admin --network "$NETWORK" 2>/dev/null || warn "Fund request failed (account may already exist)"
 
-# ── Build contracts ───────────────────────────────────────────────────────────
+# Build contracts
 info "Building Soroban contracts (optimized release)..."
 cd "$CONTRACTS_DIR"
 
 cargo build --release --target wasm32-unknown-unknown -p vault
 cargo build --release --target wasm32-unknown-unknown -p x402-verifier
 cargo build --release --target wasm32-unknown-unknown -p dwallet-verifier
+cargo build --release --target wasm32-unknown-unknown -p agent-registry
+cargo build --release --target wasm32-unknown-unknown -p strategy-marketplace
+cargo build --release --target wasm32-unknown-unknown -p stokvel-vault
+cargo build --release --target wasm32-unknown-unknown -p zk-attestation
 
 # Optimize WASM binaries
-for contract in vault x402_verifier dwallet_verifier; do
+for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation; do
   WASM="target/wasm32-unknown-unknown/release/${contract}.wasm"
   if command -v stellar &>/dev/null; then
     stellar contract optimize --wasm "$WASM" 2>/dev/null || warn "Optimize skipped for $contract"
@@ -47,7 +51,7 @@ done
 
 info "Contracts built."
 
-# ── Deploy x402-verifier ──────────────────────────────────────────────────────
+#Deploy x402-verifier
 info "Deploying x402-verifier..."
 X402_ID=$(stellar contract deploy \
   --wasm "target/wasm32-unknown-unknown/release/x402_verifier.wasm" \
@@ -69,7 +73,7 @@ stellar contract invoke \
   --oracle "$ORACLE_PK"
 info "x402-verifier initialized."
 
-# ── Deploy dwallet-verifier ───────────────────────────────────────────────────
+# Deploy dwallet-verifier
 info "Deploying dwallet-verifier..."
 DWALLET_ID=$(stellar contract deploy \
   --wasm "target/wasm32-unknown-unknown/release/dwallet_verifier.wasm" \
@@ -86,7 +90,7 @@ stellar contract invoke \
   --admin "$ADMIN_PK"
 info "dwallet-verifier initialized."
 
-# ── Deploy vault ──────────────────────────────────────────────────────────────
+#Deploy vault
 info "Deploying vault contract..."
 VAULT_ID=$(stellar contract deploy \
   --wasm "target/wasm32-unknown-unknown/release/vault.wasm" \
@@ -118,6 +122,70 @@ stellar contract invoke \
   }"
 info "Vault initialized."
 
+# Deploy agent registry
+info "Deploying agent-registry..."
+REGISTRY_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/agent_registry.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "agent-registry deployed: $REGISTRY_ID"
+
+stellar contract invoke \
+  --id "$REGISTRY_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- initialize \
+  --admin "$ADMIN_PK"
+info "agent-registry initialized."
+
+# Deploy strategy-marketplace
+info "Deploying strategy-marketplace..."
+MARKETPLACE_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/strategy_marketplace.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "strategy-marketplace deployed: $MARKETPLACE_ID"
+
+stellar contract invoke \
+  --id "$MARKETPLACE_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- initialize \
+  --admin "$ADMIN_PK" \
+  --platform_treasury "$ADMIN_PK" \
+  --platform_fee_bps 200 \
+  --agent_registry "$REGISTRY_ID"
+info "strategy-marketplace initialized."
+
+# Deploy stokvel-vault
+info "Deploying stokvel-vault..."
+STOKVEL_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/stokvel_vault.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "stokvel-vault deployed: $STOKVEL_ID"
+# Note: stokvel init is called by the group admin, not the deployer
+
+# Deploy zk-attestation
+info "Deploying zk-attestation..."
+ZK_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/zk_attestation.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "zk-attestation deployed: $ZK_ID"
+
+stellar contract invoke \
+  --id "$ZK_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- initialize \
+  --admin "$ADMIN_PK"
+info "zk-attestation initialized."
+
 # Wire up verifiers
 stellar contract invoke \
   --id "$VAULT_ID" \
@@ -133,7 +201,15 @@ stellar contract invoke \
   -- set_dwallet_verifier \
   --verifier "$DWALLET_ID"
 
-# ── Write contract IDs to .env ────────────────────────────────────────────────
+# Wire agent-registry into vault
+stellar contract invoke \
+  --id "$VAULT_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- set_agent_registry \
+  --registry "$REGISTRY_ID"
+
+# Write contract IDs to .env
 info "Updating .env with deployed contract IDs..."
 ENV_FILE="$REPO_ROOT/.env"
 
@@ -149,18 +225,26 @@ update_env() {
 update_env "VAULT_CONTRACT_ID" "$VAULT_ID"
 update_env "X402_VERIFIER_CONTRACT_ID" "$X402_ID"
 update_env "DWALLET_VERIFIER_CONTRACT_ID" "$DWALLET_ID"
+update_env "AGENT_REGISTRY_CONTRACT_ID" "$REGISTRY_ID"
+update_env "STRATEGY_MARKETPLACE_CONTRACT_ID" "$MARKETPLACE_ID"
+update_env "STOKVEL_REGISTRY_CONTRACT_ID" "$STOKVEL_ID"
+update_env "ZK_VERIFIER_CONTRACT_ID" "$ZK_ID"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
-info "═══════════════════════════════════════════════════"
+info "═══════════════════════════════════════════════════════════"
 info "VeilVault1 Testnet Deployment Complete"
-info "═══════════════════════════════════════════════════"
-info "Vault Contract:           $VAULT_ID"
-info "x402 Verifier Contract:   $X402_ID"
-info "dWallet Verifier Contract: $DWALLET_ID"
-info "Network:                  $NETWORK"
-info "Admin:                    $ADMIN_PK"
+info "═══════════════════════════════════════════════════════════"
+info "Vault Contract:              $VAULT_ID"
+info "x402 Verifier:               $X402_ID"
+info "dWallet Verifier:            $DWALLET_ID"
+info "Agent Registry (KYA):        $REGISTRY_ID"
+info "Strategy Marketplace:        $MARKETPLACE_ID"
+info "Stokvel Vault:               $STOKVEL_ID"
+info "ZK Attestation:              $ZK_ID"
+info "Network:                     $NETWORK"
+info "Admin:                       $ADMIN_PK"
 info ""
 info "Stellar Expert:"
 info "  https://testnet.stellar.expert/explorer/testnet/contract/$VAULT_ID"
-info "═══════════════════════════════════════════════════"
+info "═══════════════════════════════════════════════════════════"

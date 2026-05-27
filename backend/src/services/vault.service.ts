@@ -149,7 +149,7 @@ export class VaultService {
     });
   }
 
-  // ── View helpers ────────────────────────────────────────────────────────────
+  //  View helpers
 
   async getTotalAssets(): Promise<bigint> {
     return this.contractClient.getTotalAssets();

@@ -11,7 +11,7 @@ warn()  { echo -e "${YELLOW}[warn]${NC}  $*"; }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# ── Rust / Soroban ────────────────────────────────────────────────────────────
+# Rust / Soroban
 info "Checking Rust toolchain..."
 if ! command -v rustup &>/dev/null; then
   info "Installing Rust..."
@@ -28,7 +28,7 @@ if ! command -v stellar &>/dev/null; then
 fi
 info "Stellar CLI: $(stellar --version)"
 
-# ── Node.js ───────────────────────────────────────────────────────────────────
+# Node.js
 if ! command -v node &>/dev/null; then
   warn "Node.js not found. Please install Node.js >= 20 from https://nodejs.org"
   exit 1
@@ -41,7 +41,7 @@ cd "$REPO_ROOT/backend" && npm install
 info "Installing SDK dependencies..."
 cd "$REPO_ROOT/sdk" && npm install
 
-# ── Environment ───────────────────────────────────────────────────────────────
+# Environment
 if [[ ! -f "$REPO_ROOT/.env" ]]; then
   info "Creating .env from .env.example..."
   cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
