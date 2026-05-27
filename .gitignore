@@ -1,0 +1,37 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+*.log
+npm-debug.log*
+
+# Rust
+contracts/target/
+*.wasm
+
+# FHE keys (NEVER commit)
+fhe-keys/
+*.priv
+*.key
+
+# Stellar keys
+.stellar/
+stellar-keys/
+
+# Deployments (optional — you may want to track these)
+# deployments/
+
+# Misc
+.DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.swo
+
+# Test artifacts
+coverage/
+.jest-cache/
