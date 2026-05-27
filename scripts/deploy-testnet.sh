@@ -265,7 +265,6 @@ update_env "STOKVEL_REGISTRY_CONTRACT_ID" "$STOKVEL_ID"
 update_env "ZK_VERIFIER_CONTRACT_ID" "$ZK_ID"
 update_env "PRIVACY_POOL_CONTRACT_ID" "$POOL_ID"
 
-# ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 info "═══════════════════════════════════════════════════════════"
 info "VeilVault1 Testnet Deployment Complete"

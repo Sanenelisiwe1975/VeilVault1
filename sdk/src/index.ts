@@ -41,6 +41,7 @@ export { AgentRegistryClient, ReputationLevel } from './AgentRegistryClient';
 export { MarketplaceClient, StrategyCategory } from './MarketplaceClient';
 export { StokvelClient, ProposalType, ProposalStatus } from './StokvelClient';
 export { AttestationClient } from './AttestationClient';
+export { PrivacyPoolClient } from './PrivacyPoolClient';
 export { StrategyType } from './types';
 export type {
   SDKConfig,
@@ -66,6 +67,14 @@ export type {
   PerformanceAttestation,
   VerifyingKeyParams,
 } from './AttestationClient';
+export type {
+  PoolState,
+  PoolTreeState,
+  PoolDepositResult,
+  PoolWithdrawResult,
+  CommitmentResult,
+  PrivacyPoolClientConfig,
+} from './PrivacyPoolClient';
 
 /** SDK version */
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';

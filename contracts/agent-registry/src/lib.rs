@@ -1,13 +1,18 @@
 //! Agent Registry — Know Your Agent (KYA) Contract
 //!
-//! Implements agent identity and reputation infrastructure for VeilVault1.
+//! Implements agent identity, reputation, and selective-disclosure attribute
+//! infrastructure for VeilVault1.
 //!
-//! # Design
-//! - Agents register with a W3C DID and a SHA-256 hash of their Verifiable Credential document
-//! - Reputation is a score 0–10000 bps maintained from vault performance events
-//! - Four reputation tiers: Unverified → Verified → Trusted → Elite
-//! - Vault contracts query minimum reputation before authorising agent operations
-//! - Slash mechanism penalises bad-faith agents; ban mechanism for severe violations
+//! # Selective Disclosure
+//! Agents prove on-chain predicates (age ≥ 18, jurisdiction, accreditation)
+//! without revealing the underlying data. Workflow:
+//!
+//!   1. Admin registers an AttributeType with a required Groth16 circuit_id.
+//!   2. Agent generates a ZK proof off-chain, submits it to the zk-attestation
+//!      contract, and receives an attestation_id.
+//!   3. Agent calls claim_attribute(type_id, attestation_id).  The registry
+//!      cross-contract calls zk-attestation.is_valid(attestation_id).
+//!   4. Vaults/marketplace gate access with has_attribute(agent, type_id).
 //!
 //! # Reputation scoring
 //! | Event                        | Score delta |
@@ -22,7 +27,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype,
-    Address, BytesN, Env, String, Vec,
+    Address, BytesN, Env, String, Symbol, Val, Vec,
 };
 
 #[contracterror]
@@ -41,14 +46,13 @@ pub enum RegistryError {
     InvalidSlashAmount      = 10,
     VCAlreadyPending        = 11,
     NoPendingVC             = 12,
+    AttributeTypeNotFound   = 13,
+    ZkVerifierNotSet        = 14,
+    InvalidAttestation      = 15,
+    AttributeAlreadyClaimed = 16,
 }
 
-/// Reputation tier based on score.
-/// Tier thresholds (in bps, out of 10000):
-///   Unverified: 0–999
-///   Verified:   1000–3999
-///   Trusted:    4000–7999
-///   Elite:      8000–10000
+/// Reputation tier based on score (bps out of 10000).
 #[contracttype]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[repr(u32)]
@@ -74,28 +78,16 @@ impl ReputationLevel {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AgentProfile {
-    /// W3C DID string (e.g. "did:stellar:GABC…")
     pub did: String,
-    /// Stellar address (must own the DID)
     pub stellar_address: Address,
-    /// SHA-256 hash of the W3C Verifiable Credential JSON-LD document.
-    /// The full VC lives off-chain (IPFS / Arweave) pointed to by vc_uri.
     pub vc_hash: BytesN<32>,
-    /// Content-addressed URI to the VC document (max 256 chars)
     pub vc_uri: String,
-    /// Reputation score 0–10000 bps
     pub reputation_score: u32,
-    /// Cached tier derived from score
     pub level: ReputationLevel,
-    /// Total strategy executions
     pub total_executions: u64,
-    /// Executions that closed with positive PnL
     pub successful_executions: u64,
-    /// Cumulative deployed volume in asset base units
     pub total_volume: i128,
-    /// Current consecutive-win streak
     pub win_streak: u32,
-    /// Whether the agent is banned (cannot be reinstated without admin action)
     pub banned: bool,
     pub registered_at: u64,
     pub last_updated: u64,
@@ -110,34 +102,64 @@ pub struct PendingVC {
     pub submitted_at: u64,
 }
 
+/// A registered ZK attribute predicate type.
+///
+/// Example types:
+///   - "age_over_18":   proves age ≥ 18 without revealing DOB
+///   - "not_sanctioned": proves address not on OFAC list
+///   - "accredited":    proves net worth / income threshold
+///   - "jurisdiction_za": proves South African residency
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AttributeType {
+    pub type_id: BytesN<32>,
+    pub name: String,
+    /// The circuit that must have been used to generate the proof.
+    /// Registered in the zk-attestation contract by the same admin.
+    pub required_circuit_id: BytesN<32>,
+    pub registered_at: u64,
+}
+
+/// A verified attribute claim held by an agent.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AgentAttribute {
+    pub type_id: BytesN<32>,
+    /// attestation_id from the zk-attestation contract that proved this attribute.
+    pub attestation_id: BytesN<32>,
+    pub claimed_at: u64,
+}
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryConfig {
     pub admin: Address,
-    /// Addresses permitted to update reputation (typically the Vault contract)
     pub reputation_updaters: Vec<Address>,
+    /// Optional zk-attestation contract used to validate attribute proofs.
+    pub zk_verifier: Option<Address>,
 }
 
 #[contracttype]
 pub enum DataKey {
     Config,
-    Agent(Address),         // stellar_address → AgentProfile
-    PendingVC(Address),     // stellar_address → PendingVC
+    Agent(Address),
+    PendingVC(Address),
     AgentCount,
+    AttributeType(BytesN<32>),
+    AgentAttributes(Address),
+    AgentAttrDetail(Address, BytesN<32>),
 }
 
-const INSTANCE_TTL: u32   = 1_000_000;
-const AGENT_TTL: u32      = 1_000_000;
+const INSTANCE_TTL: u32 = 1_000_000;
+const AGENT_TTL: u32    = 1_000_000;
 
-// Reputation score constants
-
-const SCORE_VC_ACCEPTED: u32    = 500;
-const SCORE_SUCCESS_BASE: u32   = 10;   // × return_pct (integer %)
-const SCORE_FAILURE: u32        = 200;
-const SCORE_STREAK_BONUS: u32   = 50;   // applied at every 5-win streak
+const SCORE_VC_ACCEPTED: u32     = 500;
+const SCORE_SUCCESS_BASE: u32    = 10;
+const SCORE_FAILURE: u32         = 200;
+const SCORE_STREAK_BONUS: u32    = 50;
 const STREAK_BONUS_INTERVAL: u32 = 5;
-const SCORE_MAX: u32            = 10_000;
-const SCORE_SLASH_CAP: u32      = 2_000; // max single slash
+const SCORE_MAX: u32             = 10_000;
+const SCORE_SLASH_CAP: u32       = 2_000;
 
 
 #[contract]
@@ -154,6 +176,7 @@ impl AgentRegistryContract {
         let config = RegistryConfig {
             admin,
             reputation_updaters: Vec::new(&env),
+            zk_verifier: None,
         };
         env.storage().instance().set(&DataKey::Config, &config);
         env.storage().instance().set(&DataKey::AgentCount, &0u64);
@@ -161,7 +184,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    /// Grant a contract address (e.g. the Vault) permission to update reputations.
     pub fn add_reputation_updater(env: Env, updater: Address) -> Result<(), RegistryError> {
         let mut config = Self::require_admin(&env)?;
         config.reputation_updaters.push_back(updater);
@@ -169,12 +191,8 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // Agent registration
+    // ── Agent registration ───────────────────────────────────────────────────
 
-    /// Register a new agent with a W3C DID and Verifiable Credential.
-    ///
-    /// The agent must sign this transaction. The VC is not verified on-chain —
-    /// the admin must call `accept_vc` to boost the reputation score.
     pub fn register(
         env: Env,
         agent: Address,
@@ -223,7 +241,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    /// Agent submits a new or updated VC for admin review.
     pub fn submit_vc_update(
         env: Env,
         agent: Address,
@@ -244,12 +261,10 @@ impl AgentRegistryContract {
             submitted_at: env.ledger().timestamp(),
         };
         env.storage().temporary().set(&vc_key, &pending);
-        // TTL: ~7 days at 5s/ledger = 120960 ledgers
         env.storage().temporary().extend_ttl(&vc_key, 120_960, 120_960);
         Ok(())
     }
 
-    /// Admin accepts a pending VC update and awards the reputation bonus.
     pub fn accept_vc(env: Env, agent: Address) -> Result<(), RegistryError> {
         Self::require_admin(&env)?;
 
@@ -277,9 +292,8 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // Reputation updates (called by vault / authorised contracts)
+    // ── Reputation updates ───────────────────────────────────────────────────
 
-    /// Record a successful strategy close. `return_bps` is the actual return (basis points, may be 0).
     pub fn record_success(
         env: Env,
         caller: Address,
@@ -290,7 +304,6 @@ impl AgentRegistryContract {
         Self::require_reputation_updater(&env, &caller)?;
         let mut profile = Self::get_active_profile(&env, &agent)?;
 
-        // Base score: 10 pts per 1% return, capped at 200
         let return_pct = return_bps / 100;
         let score_delta = (SCORE_SUCCESS_BASE * return_pct).min(200);
         profile.reputation_score = (profile.reputation_score + score_delta).min(SCORE_MAX);
@@ -300,7 +313,6 @@ impl AgentRegistryContract {
         profile.total_volume = profile.total_volume.saturating_add(volume);
         profile.win_streak += 1;
 
-        // Streak bonus every STREAK_BONUS_INTERVAL consecutive wins
         if profile.win_streak % STREAK_BONUS_INTERVAL == 0 {
             profile.reputation_score = (profile.reputation_score + SCORE_STREAK_BONUS).min(SCORE_MAX);
             env.events().publish(
@@ -315,7 +327,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    /// Record a failed / liquidated position.
     pub fn record_failure(
         env: Env,
         caller: Address,
@@ -328,7 +339,7 @@ impl AgentRegistryContract {
         profile.reputation_score = profile.reputation_score.saturating_sub(SCORE_FAILURE);
         profile.total_executions += 1;
         profile.total_volume = profile.total_volume.saturating_add(volume);
-        profile.win_streak = 0; // reset streak
+        profile.win_streak = 0;
 
         profile.level = ReputationLevel::from_score(profile.reputation_score);
         profile.last_updated = env.ledger().timestamp();
@@ -336,9 +347,8 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // Admin actions
+    // ── Admin actions ────────────────────────────────────────────────────────
 
-    /// Slash an agent's reputation by a custom amount.
     pub fn slash(
         env: Env,
         agent: Address,
@@ -362,7 +372,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    /// Permanently ban an agent. Cannot be undone except by admin unban.
     pub fn ban(env: Env, agent: Address) -> Result<(), RegistryError> {
         Self::require_admin(&env)?;
         let mut profile = Self::get_profile(&env, &agent)?;
@@ -379,7 +388,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    /// Unban an agent (admin only).
     pub fn unban(env: Env, agent: Address) -> Result<(), RegistryError> {
         Self::require_admin(&env)?;
         let mut profile = Self::get_profile(&env, &agent)?;
@@ -389,7 +397,106 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // Views
+    // ── Selective Disclosure Attributes ──────────────────────────────────────
+
+    /// Set the zk-attestation contract address used to validate attribute proofs.
+    pub fn set_zk_verifier(env: Env, zk_verifier: Address) -> Result<(), RegistryError> {
+        let mut config = Self::require_admin(&env)?;
+        config.zk_verifier = Some(zk_verifier);
+        env.storage().instance().set(&DataKey::Config, &config);
+        Ok(())
+    }
+
+    /// Register a new attribute predicate type.
+    ///
+    /// `required_circuit_id` is the circuit registered in the zk-attestation
+    /// contract whose proofs are accepted as evidence for this attribute.
+    pub fn register_attribute_type(
+        env: Env,
+        type_id: BytesN<32>,
+        name: String,
+        required_circuit_id: BytesN<32>,
+    ) -> Result<(), RegistryError> {
+        Self::require_admin(&env)?;
+        let attr_type = AttributeType {
+            type_id: type_id.clone(),
+            name,
+            required_circuit_id,
+            registered_at: env.ledger().timestamp(),
+        };
+        let key = DataKey::AttributeType(type_id.clone());
+        env.storage().persistent().set(&key, &attr_type);
+        env.storage().persistent().extend_ttl(&key, AGENT_TTL, AGENT_TTL);
+        env.events().publish(
+            (soroban_sdk::symbol_short!("ATTR_REG"), type_id),
+            env.ledger().timestamp(),
+        );
+        Ok(())
+    }
+
+    /// Claim an attribute by providing an attestation_id from the zk-attestation
+    /// contract.  The registry cross-contract calls `is_valid(attestation_id)`
+    /// to confirm the proof was previously verified on-chain.
+    pub fn claim_attribute(
+        env: Env,
+        agent: Address,
+        attribute_type_id: BytesN<32>,
+        attestation_id: BytesN<32>,
+    ) -> Result<(), RegistryError> {
+        agent.require_auth();
+        let _ = Self::get_active_profile(&env, &agent)?;
+
+        // Verify attribute type exists
+        if !env.storage().persistent().has(&DataKey::AttributeType(attribute_type_id.clone())) {
+            return Err(RegistryError::AttributeTypeNotFound);
+        }
+
+        // Prevent duplicate claims
+        let detail_key = DataKey::AgentAttrDetail(agent.clone(), attribute_type_id.clone());
+        if env.storage().persistent().has(&detail_key) {
+            return Err(RegistryError::AttributeAlreadyClaimed);
+        }
+
+        // Cross-contract call: confirm the attestation is valid in the zk verifier
+        let config = Self::get_config(&env)?;
+        let zk_verifier = config.zk_verifier.ok_or(RegistryError::ZkVerifierNotSet)?;
+        let mut args: Vec<Val> = Vec::new(&env);
+        args.push_back(attestation_id.clone().into());
+        let is_valid: bool = env.invoke_contract(
+            &zk_verifier,
+            &Symbol::new(&env, "is_valid"),
+            args,
+        );
+        if !is_valid {
+            return Err(RegistryError::InvalidAttestation);
+        }
+
+        // Store the verified attribute
+        let attr = AgentAttribute {
+            type_id: attribute_type_id.clone(),
+            attestation_id: attestation_id.clone(),
+            claimed_at: env.ledger().timestamp(),
+        };
+        env.storage().persistent().set(&detail_key, &attr);
+        env.storage().persistent().extend_ttl(&detail_key, AGENT_TTL, AGENT_TTL);
+
+        // Append to agent's attribute list
+        let list_key = DataKey::AgentAttributes(agent.clone());
+        let mut attrs: Vec<BytesN<32>> = env.storage().persistent()
+            .get(&list_key)
+            .unwrap_or(Vec::new(&env));
+        attrs.push_back(attribute_type_id.clone());
+        env.storage().persistent().set(&list_key, &attrs);
+        env.storage().persistent().extend_ttl(&list_key, AGENT_TTL, AGENT_TTL);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("ATTR_CLM"), agent),
+            (attribute_type_id, attestation_id),
+        );
+        Ok(())
+    }
+
+    // ── Views ────────────────────────────────────────────────────────────────
 
     pub fn get_agent(env: Env, agent: Address) -> Result<AgentProfile, RegistryError> {
         Self::get_profile(&env, &agent)
@@ -424,7 +531,32 @@ impl AgentRegistryContract {
         Ok((profile.successful_executions * 10_000 / profile.total_executions) as u32)
     }
 
-    // Internal helpers
+    /// Returns true if the agent holds the given attribute.
+    pub fn has_attribute(env: Env, agent: Address, attribute_type_id: BytesN<32>) -> bool {
+        env.storage()
+            .persistent()
+            .has(&DataKey::AgentAttrDetail(agent, attribute_type_id))
+    }
+
+    /// Returns the list of attribute type IDs the agent has claimed.
+    pub fn get_agent_attributes(env: Env, agent: Address) -> Vec<BytesN<32>> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::AgentAttributes(agent))
+            .unwrap_or(Vec::new(&env))
+    }
+
+    pub fn get_attribute_type(
+        env: Env,
+        type_id: BytesN<32>,
+    ) -> Result<AttributeType, RegistryError> {
+        env.storage()
+            .persistent()
+            .get(&DataKey::AttributeType(type_id))
+            .ok_or(RegistryError::AttributeTypeNotFound)
+    }
+
+    // ── Internal helpers ─────────────────────────────────────────────────────
 
     fn get_config(env: &Env) -> Result<RegistryConfig, RegistryError> {
         env.storage()
@@ -476,7 +608,7 @@ impl AgentRegistryContract {
     }
 }
 
-// Tests
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {
@@ -525,7 +657,7 @@ mod test {
 
         let profile = client.get_agent(&agent);
         assert_eq!(profile.reputation_score, 500);
-        assert_eq!(profile.level, ReputationLevel::Unverified); // still under 1000
+        assert_eq!(profile.level, ReputationLevel::Unverified);
     }
 
     #[test]
@@ -542,7 +674,7 @@ mod test {
         client.add_reputation_updater(&admin);
         let agent = register_agent(&client, &env);
 
-        client.record_success(&admin, &agent, &1000_u32, &1_000_000_i128); // 10% return
+        client.record_success(&admin, &agent, &1000_u32, &1_000_000_i128);
         let profile = client.get_agent(&agent);
         assert!(profile.reputation_score > 0);
         assert_eq!(profile.total_executions, 1);
@@ -571,6 +703,36 @@ mod test {
         let profile = client.get_agent(&agent);
         assert!(profile.banned);
         assert!(!client.meets_minimum_level(&agent, &0_u32));
+    }
+
+    #[test]
+    fn test_register_attribute_type() {
+        let (env, _, client) = setup();
+        let type_id = BytesN::from_array(&env, &[0xAA; 32]);
+        let circuit_id = BytesN::from_array(&env, &[0xBB; 32]);
+        let name = String::from_str(&env, "age_over_18");
+
+        client.register_attribute_type(&type_id, &name, &circuit_id);
+
+        let attr_type = client.get_attribute_type(&type_id);
+        assert_eq!(attr_type.type_id, type_id);
+        assert_eq!(attr_type.required_circuit_id, circuit_id);
+    }
+
+    #[test]
+    fn test_has_attribute_returns_false_when_not_claimed() {
+        let (env, _, client) = setup();
+        let agent = register_agent(&client, &env);
+        let type_id = BytesN::from_array(&env, &[0xAA; 32]);
+        assert!(!client.has_attribute(&agent, &type_id));
+    }
+
+    #[test]
+    fn test_get_agent_attributes_empty() {
+        let (env, _, client) = setup();
+        let agent = register_agent(&client, &env);
+        let attrs = client.get_agent_attributes(&agent);
+        assert_eq!(attrs.len(), 0);
     }
 
     #[test]
