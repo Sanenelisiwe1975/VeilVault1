@@ -150,8 +150,7 @@ stellar contract invoke \
   -- initialize \
   --admin "$ADMIN_PK" \
   --platform_treasury "$ADMIN_PK" \
-  --platform_fee_bps 200 \
-  --agent_registry "$REGISTRY_ID"
+  --platform_fee_bps 200
 info "strategy-marketplace initialized."
 
 # Deploy stokvel-vault
