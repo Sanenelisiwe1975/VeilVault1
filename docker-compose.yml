@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
+      STELLAR_RPC_URL: ${STELLAR_RPC_URL}
+      STELLAR_HORIZON_URL: ${STELLAR_HORIZON_URL}
+      STELLAR_NETWORK_PASSPHRASE: ${STELLAR_NETWORK_PASSPHRASE}
+      VAULT_CONTRACT_ID: ${VAULT_CONTRACT_ID}
+      X402_VERIFIER_CONTRACT_ID: ${X402_VERIFIER_CONTRACT_ID}
+      DWALLET_VERIFIER_CONTRACT_ID: ${DWALLET_VERIFIER_CONTRACT_ID}
+      ADMIN_SECRET_KEY: ${ADMIN_SECRET_KEY}
+      ORACLE_SECRET_KEY: ${ORACLE_SECRET_KEY}
+      IKA_API_URL: ${IKA_API_URL}
+      IKA_API_KEY: ${IKA_API_KEY}
+      IKA_NETWORK: ${IKA_NETWORK:-testnet}
+      FHE_KEYS_DIR: /app/fhe-keys
+      JWT_SECRET: ${JWT_SECRET}
+      API_KEY_HASH: ${API_KEY_HASH}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - fhe-keys:/app/fhe-keys
+      - logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  fhe-keys:
+  logs:
