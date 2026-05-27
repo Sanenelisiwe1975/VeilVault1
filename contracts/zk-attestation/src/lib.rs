@@ -194,12 +194,17 @@ impl ZkAttestationContract {
         };
 
         // 4-pairing check: e(A,B) · e(−α₁,β₂) · e(vk_x,γ₂) · e(C,δ₂) == 1
-        let mut pairs: Vec<(G1Affine, G2Affine)> = Vec::new(&env);
-        pairs.push_back((G1Affine::from_bytes(proof.a), G2Affine::from_bytes(proof.b)));
-        pairs.push_back((G1Affine::from_bytes(vk.alpha_g1_neg), G2Affine::from_bytes(vk.beta_g2)));
-        pairs.push_back((vk_x, G2Affine::from_bytes(vk.gamma_g2)));
-        pairs.push_back((G1Affine::from_bytes(proof.c), G2Affine::from_bytes(vk.delta_g2)));
-        bls.pairing_check(pairs)
+        let mut vp1: Vec<G1Affine> = Vec::new(&env);
+        let mut vp2: Vec<G2Affine> = Vec::new(&env);
+        vp1.push_back(G1Affine::from_bytes(proof.a));
+        vp2.push_back(G2Affine::from_bytes(proof.b));
+        vp1.push_back(G1Affine::from_bytes(vk.alpha_g1_neg));
+        vp2.push_back(G2Affine::from_bytes(vk.beta_g2));
+        vp1.push_back(vk_x);
+        vp2.push_back(G2Affine::from_bytes(vk.gamma_g2));
+        vp1.push_back(G1Affine::from_bytes(proof.c));
+        vp2.push_back(G2Affine::from_bytes(vk.delta_g2));
+        bls.pairing_check(vp1, vp2)
     }
 
     // ── Performance Attestations ─────────────────────────────────────────────
