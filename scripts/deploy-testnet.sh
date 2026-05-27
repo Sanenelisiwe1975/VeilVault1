@@ -114,15 +114,7 @@ stellar contract invoke \
   --admin "$ADMIN_PK" \
   --name "VeilVault1-Testnet" \
   --asset "$USDC_TESTNET" \
-  --guardrails "{ \
-    \"max_drawdown_bps\": 5000, \
-    \"daily_spending_cap\": 0, \
-    \"time_lock_seconds\": 0, \
-    \"whitelisted_protocols\": [], \
-    \"max_position_size_bps\": 7000, \
-    \"max_leverage_bps\": 0, \
-    \"emergency_stop\": false \
-  }"
+  --guardrails '{"daily_spending_cap":"0","emergency_stop":false,"max_drawdown_bps":5000,"max_leverage_bps":0,"max_position_size_bps":7000,"time_lock_seconds":0,"whitelisted_protocols":[]}'
 info "Vault initialized."
 
 # Deploy agent registry
