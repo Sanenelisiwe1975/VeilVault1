@@ -33,10 +33,12 @@ stellar keys fund admin --network "$NETWORK" 2>/dev/null || warn "Fund request f
 info "Building Soroban contracts (optimized release)..."
 cd "$CONTRACTS_DIR"
 
-cargo build --release --target wasm32-unknown-unknown -p vault
+# Build vault dependencies first — contractimport! reads their WASMs at compile time
 cargo build --release --target wasm32-unknown-unknown -p x402-verifier
 cargo build --release --target wasm32-unknown-unknown -p dwallet-verifier
 cargo build --release --target wasm32-unknown-unknown -p agent-registry
+# Now vault can find the WASMs it imports
+cargo build --release --target wasm32-unknown-unknown -p vault
 cargo build --release --target wasm32-unknown-unknown -p strategy-marketplace
 cargo build --release --target wasm32-unknown-unknown -p stokvel-vault
 cargo build --release --target wasm32-unknown-unknown -p zk-attestation
@@ -55,7 +57,7 @@ info "Contracts built."
 #Deploy x402-verifier
 info "Deploying x402-verifier..."
 X402_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/x402_verifier.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/x402_verifier.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -77,7 +79,7 @@ info "x402-verifier initialized."
 # Deploy dwallet-verifier
 info "Deploying dwallet-verifier..."
 DWALLET_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/dwallet_verifier.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/dwallet_verifier.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -94,7 +96,7 @@ info "dwallet-verifier initialized."
 #Deploy vault
 info "Deploying vault contract..."
 VAULT_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/vault.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/vault.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -126,7 +128,7 @@ info "Vault initialized."
 # Deploy agent registry
 info "Deploying agent-registry..."
 REGISTRY_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/agent_registry.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/agent_registry.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -143,7 +145,7 @@ info "agent-registry initialized."
 # Deploy strategy-marketplace
 info "Deploying strategy-marketplace..."
 MARKETPLACE_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/strategy_marketplace.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/strategy_marketplace.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -163,7 +165,7 @@ info "strategy-marketplace initialized."
 # Deploy stokvel-vault
 info "Deploying stokvel-vault..."
 STOKVEL_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/stokvel_vault.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/stokvel_vault.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -173,7 +175,7 @@ info "stokvel-vault deployed: $STOKVEL_ID"
 # Deploy zk-attestation
 info "Deploying zk-attestation..."
 ZK_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/zk_attestation.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/zk_attestation.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)
@@ -222,7 +224,7 @@ info "agent-registry: zk verifier wired."
 # Deploy privacy-pool (10 USDC denomination)
 info "Deploying privacy-pool..."
 POOL_ID=$(stellar contract deploy \
-  --wasm "target/wasm32-unknown-unknown/release/privacy_pool.wasm" \
+  --wasm "target/wasm32-unknown-unknown/release/privacy_pool.optimized.wasm" \
   --source admin \
   --network "$NETWORK" \
   --ignore-checks)

@@ -17,19 +17,19 @@ use storage::{GuardrailsConfig, Position, StrategyType, VaultConfig};
 
 mod x402_verifier {
     soroban_sdk::contractimport!(
-        file = "../../target/wasm32-unknown-unknown/release/x402_verifier.wasm"
+        file = "../target/wasm32-unknown-unknown/release/x402_verifier.wasm"
     );
 }
 
 mod dwallet_verifier {
     soroban_sdk::contractimport!(
-        file = "../../target/wasm32-unknown-unknown/release/dwallet_verifier.wasm"
+        file = "../target/wasm32-unknown-unknown/release/dwallet_verifier.wasm"
     );
 }
 
 mod agent_registry {
     soroban_sdk::contractimport!(
-        file = "../../target/wasm32-unknown-unknown/release/agent_registry.wasm"
+        file = "../target/wasm32-unknown-unknown/release/agent_registry.wasm"
     );
 }
 
@@ -256,12 +256,11 @@ impl VaultContract {
             } else {
                 0
             };
+            let vault_addr = env.current_contract_address();
             if pnl >= 0 {
-                // record_success(agent, return_bps)
-                registry.record_success(&agent, &(return_bps as u32));
+                registry.record_success(&vault_addr, &agent, &(return_bps as u32), &return_amount);
             } else {
-                // record_failure(agent)
-                registry.record_failure(&agent);
+                registry.record_failure(&vault_addr, &agent, &return_amount);
             }
         }
 
