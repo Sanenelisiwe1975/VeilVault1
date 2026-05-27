@@ -25,8 +25,6 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, String, Vec,
 };
 
-// ── Errors ────────────────────────────────────────────────────────────────────
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -44,8 +42,6 @@ pub enum RegistryError {
     VCAlreadyPending        = 11,
     NoPendingVC             = 12,
 }
-
-// ── Storage types ─────────────────────────────────────────────────────────────
 
 /// Reputation tier based on score.
 /// Tier thresholds (in bps, out of 10000):
@@ -133,7 +129,7 @@ pub enum DataKey {
 const INSTANCE_TTL: u32   = 1_000_000;
 const AGENT_TTL: u32      = 1_000_000;
 
-// ── Reputation score constants ────────────────────────────────────────────────
+// Reputation score constants
 
 const SCORE_VC_ACCEPTED: u32    = 500;
 const SCORE_SUCCESS_BASE: u32   = 10;   // × return_pct (integer %)
@@ -143,14 +139,12 @@ const STREAK_BONUS_INTERVAL: u32 = 5;
 const SCORE_MAX: u32            = 10_000;
 const SCORE_SLASH_CAP: u32      = 2_000; // max single slash
 
-// ── Contract ──────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct AgentRegistryContract;
 
 #[contractimpl]
 impl AgentRegistryContract {
-    // ── Initialisation ────────────────────────────────────────────────────────
 
     pub fn initialize(env: Env, admin: Address) -> Result<(), RegistryError> {
         if env.storage().instance().has(&DataKey::Config) {
@@ -175,7 +169,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Agent registration ────────────────────────────────────────────────────
+    // Agent registration
 
     /// Register a new agent with a W3C DID and Verifiable Credential.
     ///
@@ -283,7 +277,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Reputation updates (called by vault / authorised contracts) ───────────
+    // Reputation updates (called by vault / authorised contracts)
 
     /// Record a successful strategy close. `return_bps` is the actual return (basis points, may be 0).
     pub fn record_success(
@@ -340,7 +334,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Admin actions ─────────────────────────────────────────────────────────
+    // Admin actions
 
     /// Slash an agent's reputation by a custom amount.
     pub fn slash(
@@ -393,7 +387,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
+    // Views
 
     pub fn get_agent(env: Env, agent: Address) -> Result<AgentProfile, RegistryError> {
         Self::get_profile(&env, &agent)
@@ -428,7 +422,7 @@ impl AgentRegistryContract {
         Ok((profile.successful_executions * 10_000 / profile.total_executions) as u32)
     }
 
-    // ── Internal helpers ──────────────────────────────────────────────────────
+    // Internal helpers
 
     fn get_config(env: &Env) -> Result<RegistryConfig, RegistryError> {
         env.storage()
@@ -480,7 +474,7 @@ impl AgentRegistryContract {
     }
 }
 
-// ── Tests ─────────────────────────────────────────────────────────────────────
+// Tests
 
 #[cfg(test)]
 mod test {
