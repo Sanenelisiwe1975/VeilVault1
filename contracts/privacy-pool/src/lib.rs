@@ -1,3 +1,4 @@
+
 //! Privacy Pool Contract — ZK-native Merkle tree (MiMC-5 over BLS12-381 Fr)
 //!
 //! # Hash function upgrade (v2)
@@ -372,17 +373,17 @@ impl PrivacyPoolContract {
         for i in 0..MIMC_ROUNDS {
             let c = Fr::from_bytes(constants.get(i).unwrap());
             // S-box: t = (b + c)^5  via 3 multiplications
-            let t  = bls.fr_add(b.clone(), c);
-            let t2 = bls.fr_mul(t.clone(), t.clone());
-            let t4 = bls.fr_mul(t2.clone(), t2);
-            let t5 = bls.fr_mul(t4, t);
+            let t  = bls.fr_add(&b, &c);
+            let t2 = bls.fr_mul(&t, &t);
+            let t4 = bls.fr_mul(&t2, &t2);
+            let t5 = bls.fr_mul(&t4, &t);
             // Feistel: (a, b) ← (b, a + t5)
-            let new_b = bls.fr_add(a.clone(), t5);
+            let new_b = bls.fr_add(&a, &t5);
             a = b;
             b = new_b;
         }
 
-        bls.fr_add(a, b).to_bytes()
+        bls.fr_add(&a, &b).to_bytes()
     }
 
     /// Map a 32-byte value to a BLS12-381 Fr element.

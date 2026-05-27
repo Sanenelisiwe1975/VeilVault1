@@ -22,8 +22,8 @@ fi
 
 [[ -z "${ADMIN_SECRET_KEY:-}" ]] && error "ADMIN_SECRET_KEY not set in .env"
 
-ADMIN_PK=$(stellar keys show admin 2>/dev/null || \
-  stellar keys generate --no-fund admin && stellar keys show admin)
+stellar keys generate admin 2>/dev/null || true
+ADMIN_PK=$(stellar keys address admin)
 
 # Fund testnet account if needed
 info "Funding admin account on testnet..."
@@ -62,8 +62,8 @@ X402_ID=$(stellar contract deploy \
 info "x402-verifier deployed: $X402_ID"
 
 # Initialize x402-verifier
-ORACLE_PK=$(stellar keys show oracle 2>/dev/null || \
-  stellar keys generate --no-fund oracle && stellar keys show oracle)
+stellar keys generate oracle 2>/dev/null || true
+ORACLE_PK=$(stellar keys address oracle)
 
 stellar contract invoke \
   --id "$X402_ID" \
@@ -250,7 +250,8 @@ ENV_FILE="$REPO_ROOT/.env"
 update_env() {
   local key="$1" val="$2"
   if grep -q "^${key}=" "$ENV_FILE"; then
-    sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+    # portable sed: works on GNU (Linux/WSL/Git Bash) and BSD (macOS)
+    sed -i.bak "s|^${key}=.*|${key}=${val}|" "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
   else
     echo "${key}=${val}" >> "$ENV_FILE"
   fi
