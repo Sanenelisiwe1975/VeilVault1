@@ -42,6 +42,7 @@ export { MarketplaceClient, StrategyCategory } from './MarketplaceClient';
 export { StokvelClient, ProposalType, ProposalStatus } from './StokvelClient';
 export { AttestationClient } from './AttestationClient';
 export { PrivacyPoolClient } from './PrivacyPoolClient';
+export { RWAClient, RWAType } from './RWAClient';
 export { StrategyType } from './types';
 export type {
   SDKConfig,

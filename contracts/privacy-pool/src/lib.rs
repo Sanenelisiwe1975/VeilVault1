@@ -476,12 +476,7 @@ mod test {
 
     fn mint(env: &Env, asset: &Address, recipient: &Address, amount: i128) {
         use soroban_sdk::token::StellarAssetClient;
-        let token_admin = Address::generate(env);
-        let sac = StellarAssetClient::new(env, asset);
-        sac.mint(&token_admin, &amount);
-        let _ = token_admin;
-        let sac2 = StellarAssetClient::new(env, asset);
-        sac2.mint(recipient, &amount);
+        StellarAssetClient::new(env, asset).mint(recipient, &amount);
     }
 
     #[test]
