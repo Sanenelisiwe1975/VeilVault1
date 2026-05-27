@@ -76,6 +76,12 @@ export type {
   CommitmentResult,
   PrivacyPoolClientConfig,
 } from './PrivacyPoolClient';
+export type {
+  RWAAsset,
+  RemittanceRoute,
+  RWAAllocationRecommendation,
+  RWAClientConfig,
+} from './RWAClient';
 
 /** SDK version */
 export const VERSION = '0.3.0';
