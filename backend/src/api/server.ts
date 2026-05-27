@@ -13,6 +13,7 @@ import stokvelRoutes from './routes/stokvel.routes';
 import attestationRoutes from './routes/attestation.routes';
 import multiAgentRoutes from './routes/multi-agent.routes';
 import privacyPoolRoutes from './routes/privacy-pool.routes';
+import rwaRoutes from './routes/rwa.routes';
 import { createChildLogger } from '../utils/logger';
 
 const log = createChildLogger('server');
@@ -59,6 +60,7 @@ export function createServer(): express.Application {
   app.use('/api/attestations', attestationRoutes);
   app.use('/api/multi-agent', multiAgentRoutes);
   app.use('/api/privacy-pool', privacyPoolRoutes);
+  app.use('/api/rwa', rwaRoutes);
 
   // Global error handler
 
