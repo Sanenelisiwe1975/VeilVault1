@@ -1,0 +1,67 @@
+name: Deploy to Testnet
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'contracts/**'
+  workflow_dispatch:
+    inputs:
+      network:
+        description: 'Target network'
+        required: true
+        default: 'testnet'
+        type: choice
+        options: [testnet]
+
+jobs:
+  deploy-testnet:
+    name: Deploy Contracts (Testnet)
+    runs-on: ubuntu-latest
+    environment: testnet
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust + wasm target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Run contract tests before deploying
+        working-directory: contracts
+        run: cargo test --features testutils
+
+      - name: Build optimized WASM
+        working-directory: contracts
+        run: |
+          cargo build --release --target wasm32-unknown-unknown
+          for contract in vault x402_verifier dwallet_verifier; do
+            stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${contract}.wasm
+          done
+
+      - name: Set up Stellar keys
+        run: |
+          echo "${{ secrets.ADMIN_SECRET_KEY }}" | stellar keys add admin --secret-key
+          echo "${{ secrets.ORACLE_SECRET_KEY }}" | stellar keys add oracle --secret-key
+
+      - name: Deploy to testnet
+        env:
+          ADMIN_SECRET_KEY: ${{ secrets.ADMIN_SECRET_KEY }}
+          ORACLE_SECRET_KEY: ${{ secrets.ORACLE_SECRET_KEY }}
+        run: bash scripts/deploy-testnet.sh
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-info
+          path: deployments/
