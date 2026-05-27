@@ -22,7 +22,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, token,
-    Address, Bytes, BytesN, Env, String, Vec,
+    Address, Env, String, Vec,
 };
 
 // Errors
@@ -232,7 +232,7 @@ impl StokvelVaultContract {
         if !config.is_accepting_members || !config.is_active {
             return Err(StokvelError::GroupInactive);
         }
-        let stats = Self::get_stats(&env);
+        let stats = Self::load_stats(&env);
         if stats.total_members >= config.max_members {
             return Err(StokvelError::MaxMembersReached);
         }
@@ -292,7 +292,7 @@ impl StokvelVaultContract {
         Self::save_member(&env, &member, &member_info);
 
         // Update stats and recompute shares
-        let mut stats = Self::get_stats(&env);
+        let mut stats = Self::load_stats(&env);
         stats.total_contributed = stats
             .total_contributed
             .checked_add(actual_amount)
@@ -351,7 +351,7 @@ impl StokvelVaultContract {
         env.storage().persistent().set(&DataKey::Proposal(count), &proposal);
         env.storage().persistent().extend_ttl(&DataKey::Proposal(count), PROPOSAL_TTL, PROPOSAL_TTL);
 
-        let mut stats = Self::get_stats(&env);
+        let mut stats = Self::load_stats(&env);
         stats.proposal_count += 1;
         env.storage().instance().set(&DataKey::Stats, &stats);
 
@@ -417,7 +417,7 @@ impl StokvelVaultContract {
         proposal.rejections.push_back(voter.clone());
 
         let config = Self::get_config(&env)?;
-        let stats = Self::get_stats(&env);
+        let stats = Self::load_stats(&env);
         let majority_rejected = proposal.rejections.len() > stats.total_members as u32 / 2;
 
         if majority_rejected {
@@ -460,7 +460,7 @@ impl StokvelVaultContract {
                 let mut info = Self::get_member(&env, &member)?;
                 info.is_active = false;
                 Self::save_member(&env, &member, &info);
-                let mut stats = Self::get_stats(&env);
+                let mut stats = Self::load_stats(&env);
                 if stats.total_members > 0 { stats.total_members -= 1; }
                 env.storage().instance().set(&DataKey::Stats, &stats);
                 Self::recompute_shares(&env)?;
@@ -525,7 +525,7 @@ impl StokvelVaultContract {
             .ok_or(StokvelError::NotInitialized)
     }
 
-    fn get_stats(env: &Env) -> StokvelStats {
+    fn load_stats(env: &Env) -> StokvelStats {
         env.storage().instance()
             .get::<DataKey, StokvelStats>(&DataKey::Stats)
             .unwrap_or(StokvelStats {
@@ -571,7 +571,7 @@ impl StokvelVaultContract {
         list.push_back(addr);
         env.storage().instance().set(&DataKey::MemberList, &list);
 
-        let mut stats = Self::get_stats(env);
+        let mut stats = Self::load_stats(env);
         stats.total_members += 1;
         env.storage().instance().set(&DataKey::Stats, &stats);
         Ok(())
@@ -579,7 +579,7 @@ impl StokvelVaultContract {
 
     /// Recompute each member's share_bps proportional to their contribution.
     fn recompute_shares(env: &Env) -> Result<(), StokvelError> {
-        let stats = Self::get_stats(env);
+        let stats = Self::load_stats(env);
         if stats.total_contributed == 0 {
             return Ok(());
         }
@@ -614,20 +614,20 @@ impl StokvelVaultContract {
             }
         }
 
-        let mut stats = Self::get_stats(env);
+        let mut stats = Self::load_stats(env);
         stats.total_distributed = stats.total_distributed.saturating_add(yield_amount);
         env.storage().instance().set(&DataKey::Stats, &stats);
         Ok(())
     }
 
     fn execute_withdrawal(env: &Env, config: &StokvelConfig, recipient: &Address, amount: i128) -> Result<(), StokvelError> {
-        let stats = Self::get_stats(env);
+        let stats = Self::load_stats(env);
         if amount > stats.current_pool_value {
             return Err(StokvelError::InsufficientFunds);
         }
         token::Client::new(env, &config.asset)
             .transfer(&env.current_contract_address(), recipient, &amount);
-        let mut s = Self::get_stats(env);
+        let mut s = Self::load_stats(env);
         s.current_pool_value = s.current_pool_value.saturating_sub(amount);
         env.storage().instance().set(&DataKey::Stats, &s);
         Ok(())

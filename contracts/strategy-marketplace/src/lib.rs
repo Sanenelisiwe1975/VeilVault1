@@ -16,7 +16,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype, token,
-    Address, Bytes, BytesN, Env, String, Vec,
+    Address, Bytes, BytesN, Env, String,
 };
 
 #[contracterror]
@@ -65,7 +65,7 @@ pub enum StrategyCategory {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StrategyListing {
-    /// Unique ID: SHA-256 of (author || name || published_at)
+    /// Unique ID: SHA-256 of (timestamp || strategy_count)
     pub strategy_id: BytesN<32>,
     pub author: Address,
     pub name: String,
@@ -78,7 +78,7 @@ pub struct StrategyListing {
     pub execution_fee: i128,
     /// SAC token address for the fee (typically USDC)
     pub fee_asset: Address,
-    /// Minimum vault deposit for this strategy (in vault asset units)
+    /// Minimum vault deposit for this strategy (0 = no minimum)
     pub min_amount: i128,
     /// 0 = unlimited
     pub max_amount: i128,
@@ -86,7 +86,7 @@ pub struct StrategyListing {
     pub estimated_apr_bps: u32,
     /// Whether the strategy has passed an external security audit
     pub is_audited: bool,
-    /// SHA-256 hash of the audit report (0 if not audited)
+    /// SHA-256 hash of the audit report (None if not audited)
     pub audit_report_hash: Option<BytesN<32>>,
     /// Cumulative on-chain performance data
     pub total_executions: u64,
@@ -114,7 +114,7 @@ pub struct MarketplaceConfig {
 #[contracttype]
 pub enum DataKey {
     Config,
-    Strategy(BytesN<32>),      // strategy_id → StrategyListing
+    Strategy(BytesN<32>),         // strategy_id → StrategyListing
     AuthorStrategy(Address, u64), // (author, index) → strategy_id
     AuthorStrategyCount(Address),
 }
@@ -153,9 +153,11 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    //Strategy publication
+    // ── Strategy publication ──────────────────────────────────────────────────
 
     /// Developer publishes a new strategy.
+    /// min_amount, max_amount, and estimated_apr_bps default to 0 and can be
+    /// updated via a separate admin call or read from the strategy listing.
     pub fn publish_strategy(
         env: Env,
         author: Address,
@@ -166,21 +168,20 @@ impl StrategyMarketplaceContract {
         risk_level: u32,
         execution_fee: i128,
         fee_asset: Address,
-        min_amount: i128,
-        max_amount: i128,
-        estimated_apr_bps: u32,
         min_agent_level: u32,
     ) -> Result<BytesN<32>, MarketplaceError> {
         author.require_auth();
-
+        let mut config = Self::get_config(&env)?;
         let now = env.ledger().timestamp();
 
-        // Derive strategy ID from author + name + timestamp
-        let mut id_input = Bytes::new(&env);
-        id_input.append(&Bytes::from_slice(&env, author.to_string().as_bytes()));
-        id_input.append(&Bytes::from_slice(&env, name.to_string().as_bytes()));
-        let ts_bytes = now.to_be_bytes();
-        id_input.append(&Bytes::from_slice(&env, &ts_bytes));
+        // Derive strategy ID from timestamp + current strategy count
+        let ts = now.to_be_bytes();
+        let cnt = config.total_strategies.to_be_bytes();
+        let mut seed = [0u8; 16];
+        let mut i = 0usize;
+        while i < 8 { seed[i] = ts[i]; i += 1; }
+        while i < 16 { seed[i] = cnt[i - 8]; i += 1; }
+        let id_input = Bytes::from_slice(&env, &seed);
         let strategy_id: BytesN<32> = env.crypto().sha256(&id_input).into();
 
         let cat = Self::parse_category(category)?;
@@ -196,9 +197,9 @@ impl StrategyMarketplaceContract {
             risk_level: risk,
             execution_fee,
             fee_asset,
-            min_amount,
-            max_amount,
-            estimated_apr_bps,
+            min_amount: 0,
+            max_amount: 0,
+            estimated_apr_bps: 0,
             is_audited: false,
             audit_report_hash: None,
             total_executions: 0,
@@ -225,7 +226,6 @@ impl StrategyMarketplaceContract {
         env.storage().persistent().set(&count_key, &(idx + 1));
 
         // Update global stats
-        let mut config = Self::get_config(&env)?;
         config.total_strategies += 1;
         env.storage().instance().set(&DataKey::Config, &config);
 
@@ -236,7 +236,7 @@ impl StrategyMarketplaceContract {
         Ok(strategy_id)
     }
 
-    //   Strategy execution
+    // ── Strategy execution ────────────────────────────────────────────────────
 
     /// Agent executes a strategy.
     ///
@@ -263,11 +263,9 @@ impl StrategyMarketplaceContract {
         let fee = listing.execution_fee;
 
         if fee > 0 {
-            // Calculate platform cut
             let platform_cut = (fee as i128 * config.platform_fee_bps as i128) / 10_000;
             let author_cut = fee - platform_cut;
 
-            // Transfer fee from agent to author
             let fee_token = token::Client::new(&env, &listing.fee_asset);
             fee_token.transfer(&agent, &listing.author, &author_cut);
 
@@ -299,7 +297,6 @@ impl StrategyMarketplaceContract {
         strategy_id: BytesN<32>,
         return_bps: i32,
     ) -> Result<(), MarketplaceError> {
-        // Only the admin / authorised vault can call this
         let config = Self::get_config(&env)?;
         config.admin.require_auth();
 
@@ -316,7 +313,7 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // Admin actions
+    // ── Admin actions ─────────────────────────────────────────────────────────
 
     /// Mark a strategy as audited and record the audit report hash.
     pub fn audit_strategy(
@@ -327,7 +324,7 @@ impl StrategyMarketplaceContract {
         Self::require_admin(&env)?;
         let mut listing = Self::get_strategy(&env, &strategy_id)?;
         listing.is_audited = true;
-        listing.audit_report_hash = Some(audit_report_hash);
+        listing.audit_report_hash = Some(audit_report_hash.clone());
         env.storage().persistent().set(&DataKey::Strategy(strategy_id.clone()), &listing);
         env.events().publish(
             (soroban_sdk::symbol_short!("AUDIT"), strategy_id),
@@ -336,12 +333,19 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    pub fn deactivate_strategy(env: Env, strategy_id: BytesN<32>) -> Result<(), MarketplaceError> {
-        let mut listing = Self::get_strategy(&env, &strategy_id)?;
-        // Only author or admin can deactivate
-        if listing.author.try_require_auth().is_err() {
-            Self::require_admin(&env)?;
+    /// Deactivate a strategy. Only the author or admin may call this.
+    pub fn deactivate_strategy(
+        env: Env,
+        caller: Address,
+        strategy_id: BytesN<32>,
+    ) -> Result<(), MarketplaceError> {
+        let config = Self::get_config(&env)?;
+        let listing = Self::get_strategy(&env, &strategy_id)?;
+        if caller != listing.author && caller != config.admin {
+            return Err(MarketplaceError::Unauthorized);
         }
+        caller.require_auth();
+        let mut listing = listing;
         listing.is_active = false;
         env.storage().persistent().set(&DataKey::Strategy(strategy_id), &listing);
         Ok(())
@@ -357,7 +361,7 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // Views
+    // ── Views ─────────────────────────────────────────────────────────────────
 
     pub fn get_strategy_info(env: Env, strategy_id: BytesN<32>) -> Result<StrategyListing, MarketplaceError> {
         Self::get_strategy(&env, &strategy_id)
@@ -373,7 +377,7 @@ impl StrategyMarketplaceContract {
             .unwrap_or(0)
     }
 
-    // Internal
+    // ── Internal ──────────────────────────────────────────────────────────────
 
     fn get_config(env: &Env) -> Result<MarketplaceConfig, MarketplaceError> {
         env.storage().instance()
@@ -424,7 +428,7 @@ impl StrategyMarketplaceContract {
     }
 }
 
-// Tests
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {
@@ -476,10 +480,7 @@ mod test {
             &0_u32, // Low risk
             &1_000_000_i128, // 0.1 USDC fee
             &s.fee_asset,
-            &1_000_000_i128,
-            &0_i128,
-            &500_u32, // 5% APR
-            &1_u32,   // min Verified level
+            &1_u32, // min Verified level
         );
 
         let listing = s.client.get_strategy_info(&id);
@@ -499,8 +500,7 @@ mod test {
             &String::from_str(&s.env, "Staking v1"),
             &String::from_str(&s.env, "XLM Staking"),
             &protocol,
-            &2_u32, &1_u32, &500_000_i128, &s.fee_asset,
-            &1_000_000_i128, &0_i128, &800_u32, &0_u32,
+            &2_u32, &1_u32, &500_000_i128, &s.fee_asset, &0_u32,
         );
 
         let report_hash = BytesN::from_array(&s.env, &[0xAB; 32]);

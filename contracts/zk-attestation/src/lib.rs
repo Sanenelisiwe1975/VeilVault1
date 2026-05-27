@@ -1,7 +1,7 @@
 #![no_std]
 
 use soroban_sdk::{
-    contract, contractimpl, contracttype,
+    contract, contractimpl, contracttype, symbol_short,
     crypto::bls12_381::{Fr, G1Affine, G2Affine},
     vec, Address, Bytes, BytesN, Env, String, Vec,
 };
@@ -36,11 +36,11 @@ pub enum DataKey {
 #[contracttype]
 #[derive(Clone)]
 pub struct VerifyingKey {
-    pub alpha_g1_neg: Bytes,   // -α₁  (G1, 96 bytes)
-    pub beta_g2: Bytes,        //  β₂  (G2, 192 bytes)
-    pub gamma_g2: Bytes,       //  γ₂  (G2, 192 bytes)
-    pub delta_g2: Bytes,       //  δ₂  (G2, 192 bytes)
-    pub ic: Vec<Bytes>,        // IC[0..n] (G1, 96 bytes each)
+    pub alpha_g1_neg: BytesN<96>,   // -α₁  (G1, 96 bytes)
+    pub beta_g2: BytesN<192>,       //  β₂  (G2, 192 bytes)
+    pub gamma_g2: BytesN<192>,      //  γ₂  (G2, 192 bytes)
+    pub delta_g2: BytesN<192>,      //  δ₂  (G2, 192 bytes)
+    pub ic: Vec<BytesN<96>>,        // IC[0..n] (G1, 96 bytes each)
     pub circuit_id: BytesN<32>,
     pub circuit_name: String,
 }
@@ -49,9 +49,9 @@ pub struct VerifyingKey {
 #[contracttype]
 #[derive(Clone)]
 pub struct Proof {
-    pub a: Bytes,  // A (G1, 96 bytes)
-    pub b: Bytes,  // B (G2, 192 bytes)
-    pub c: Bytes,  // C (G1, 96 bytes)
+    pub a: BytesN<96>,    // A (G1, 96 bytes)
+    pub b: BytesN<192>,   // B (G2, 192 bytes)
+    pub c: BytesN<96>,    // C (G1, 96 bytes)
 }
 
 /// On-chain record of a verified vault performance attestation.
@@ -108,21 +108,14 @@ impl ZkAttestationContract {
         env: Env,
         circuit_id: BytesN<32>,
         circuit_name: String,
-        alpha_g1_neg: Bytes,
-        beta_g2: Bytes,
-        gamma_g2: Bytes,
-        delta_g2: Bytes,
-        ic: Vec<Bytes>,
+        alpha_g1_neg: BytesN<96>,
+        beta_g2: BytesN<192>,
+        gamma_g2: BytesN<192>,
+        delta_g2: BytesN<192>,
+        ic: Vec<BytesN<96>>,
     ) {
         Self::require_admin(&env);
-        assert_eq!(alpha_g1_neg.len(), 96,  "alpha_g1_neg must be 96 bytes");
-        assert_eq!(beta_g2.len(),      192, "beta_g2 must be 192 bytes");
-        assert_eq!(gamma_g2.len(),     192, "gamma_g2 must be 192 bytes");
-        assert_eq!(delta_g2.len(),     192, "delta_g2 must be 192 bytes");
         assert!(ic.len() >= 1, "ic must have at least one point");
-        for point in ic.iter() {
-            assert_eq!(point.len(), 96, "each IC point must be 96 bytes");
-        }
 
         let vk = VerifyingKey {
             alpha_g1_neg,
@@ -152,7 +145,7 @@ impl ZkAttestationContract {
             .expect("circuit not found")
     }
 
-    // Groth16 Proof Verification
+    // ── Groth16 Proof Verification ───────────────────────────────────────────
 
     /// Verify a Groth16 proof on-chain using Soroban's BLS12-381 host functions.
     ///
@@ -184,41 +177,32 @@ impl ZkAttestationContract {
         }
 
         let bls = env.crypto().bls12_381();
-        let ic0 = G1Affine::from_bytes(vk.ic.get(0).expect("ic empty"));
+        let ic0: G1Affine = G1Affine::from_bytes(vk.ic.get(0).expect("ic empty"));
 
         // vk_x = IC[0] + MSM(IC[1..], public_inputs)
-        let vk_x = if public_inputs.len() > 0 {
+        let vk_x: G1Affine = if public_inputs.len() > 0 {
             let mut pts: Vec<G1Affine> = Vec::new(&env);
             let mut scs: Vec<Fr> = Vec::new(&env);
             for i in 0..public_inputs.len() {
                 pts.push_back(G1Affine::from_bytes(vk.ic.get(i + 1).expect("ic short")));
-                scs.push_back(Fr::from_bytes(public_inputs.get(i).expect("scalar missing").into()));
+                scs.push_back(Fr::from_bytes(public_inputs.get(i).expect("scalar missing")));
             }
-            bls.g1_add(ic0, bls.g1_msm(pts, scs))
+            let sum = bls.g1_msm(pts, scs);
+            bls.g1_add(&ic0, &sum)
         } else {
             ic0
         };
 
-        // 4-pairing check:  e(A,B) · e(−α₁,β₂) · e(vk_x,γ₂) · e(C,δ₂) == 1
-        bls.multi_pairing_check(
-            vec![
-                &env,
-                G1Affine::from_bytes(proof.a),
-                G1Affine::from_bytes(vk.alpha_g1_neg),
-                vk_x,
-                G1Affine::from_bytes(proof.c),
-            ],
-            vec![
-                &env,
-                G2Affine::from_bytes(proof.b),
-                G2Affine::from_bytes(vk.beta_g2),
-                G2Affine::from_bytes(vk.gamma_g2),
-                G2Affine::from_bytes(vk.delta_g2),
-            ],
-        )
+        // 4-pairing check: e(A,B) · e(−α₁,β₂) · e(vk_x,γ₂) · e(C,δ₂) == 1
+        let mut pairs: Vec<(G1Affine, G2Affine)> = Vec::new(&env);
+        pairs.push_back((G1Affine::from_bytes(proof.a), G2Affine::from_bytes(proof.b)));
+        pairs.push_back((G1Affine::from_bytes(vk.alpha_g1_neg), G2Affine::from_bytes(vk.beta_g2)));
+        pairs.push_back((vk_x, G2Affine::from_bytes(vk.gamma_g2)));
+        pairs.push_back((G1Affine::from_bytes(proof.c), G2Affine::from_bytes(vk.delta_g2)));
+        bls.pairing_check(pairs)
     }
 
-    // Performance Attestations
+    // ── Performance Attestations ─────────────────────────────────────────────
 
     /// Submit and verify a vault performance attestation.
     ///
@@ -332,7 +316,7 @@ impl ZkAttestationContract {
             .unwrap_or(false)
     }
 
-    // Helpers
+    // ── Helpers ──────────────────────────────────────────────────────────────
 
     fn require_admin(env: &Env) {
         let admin: Address = env
@@ -361,31 +345,23 @@ impl ZkAttestationContract {
     }
 }
 
-//Tests
+// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use soroban_sdk::{testutils::Address as _, Env};
 
-    fn dummy_g1(env: &Env) -> Bytes {
-        // G1 identity (point at infinity): first byte = 0xc0, rest zeros.
-        let mut b = Bytes::new(env);
-        b.push_back(0xc0);
-        for _ in 1..96 {
-            b.push_back(0x00);
-        }
-        b
+    fn dummy_g1(env: &Env) -> BytesN<96> {
+        let mut arr = [0u8; 96];
+        arr[0] = 0xc0;
+        BytesN::from_array(env, &arr)
     }
 
-    fn dummy_g2(env: &Env) -> Bytes {
-        // G2 identity: first byte = 0xc0, rest zeros.
-        let mut b = Bytes::new(env);
-        b.push_back(0xc0);
-        for _ in 1..192 {
-            b.push_back(0x00);
-        }
-        b
+    fn dummy_g2(env: &Env) -> BytesN<192> {
+        let mut arr = [0u8; 192];
+        arr[0] = 0xc0;
+        BytesN::from_array(env, &arr)
     }
 
     #[test]
@@ -422,7 +398,7 @@ mod tests {
 
         let circuit_id = BytesN::from_array(&env, &[1u8; 32]);
         let name = String::from_str(&env, "performance_v1");
-        let ic: Vec<Bytes> = vec![&env, dummy_g1(&env), dummy_g1(&env), dummy_g1(&env)];
+        let ic: Vec<BytesN<96>> = vec![&env, dummy_g1(&env), dummy_g1(&env), dummy_g1(&env)];
 
         client.register_circuit(
             &circuit_id,

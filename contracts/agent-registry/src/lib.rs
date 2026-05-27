@@ -22,7 +22,7 @@
 
 use soroban_sdk::{
     contract, contractimpl, contracterror, contracttype,
-    Address, Bytes, BytesN, Env, String, Vec,
+    Address, BytesN, Env, String, Vec,
 };
 
 #[contracterror]
@@ -251,7 +251,7 @@ impl AgentRegistryContract {
 
     /// Admin accepts a pending VC update and awards the reputation bonus.
     pub fn accept_vc(env: Env, agent: Address) -> Result<(), RegistryError> {
-        let config = Self::require_admin(&env)?;
+        Self::require_admin(&env)?;
 
         let vc_key = DataKey::PendingVC(agent.clone());
         let pending: PendingVC = env
@@ -282,11 +282,12 @@ impl AgentRegistryContract {
     /// Record a successful strategy close. `return_bps` is the actual return (basis points, may be 0).
     pub fn record_success(
         env: Env,
+        caller: Address,
         agent: Address,
         return_bps: u32,
         volume: i128,
     ) -> Result<(), RegistryError> {
-        Self::require_reputation_updater(&env)?;
+        Self::require_reputation_updater(&env, &caller)?;
         let mut profile = Self::get_active_profile(&env, &agent)?;
 
         // Base score: 10 pts per 1% return, capped at 200
@@ -317,10 +318,11 @@ impl AgentRegistryContract {
     /// Record a failed / liquidated position.
     pub fn record_failure(
         env: Env,
+        caller: Address,
         agent: Address,
         volume: i128,
     ) -> Result<(), RegistryError> {
-        Self::require_reputation_updater(&env)?;
+        Self::require_reputation_updater(&env, &caller)?;
         let mut profile = Self::get_active_profile(&env, &agent)?;
 
         profile.reputation_score = profile.reputation_score.saturating_sub(SCORE_FAILURE);
@@ -437,16 +439,16 @@ impl AgentRegistryContract {
         Ok(config)
     }
 
-    fn require_reputation_updater(env: &Env) -> Result<(), RegistryError> {
+    fn require_reputation_updater(env: &Env, caller: &Address) -> Result<(), RegistryError> {
         let config = Self::get_config(env)?;
-        // The caller must be one of the authorised updaters
         for updater in config.reputation_updaters.iter() {
-            if let Ok(()) = updater.try_require_auth() {
+            if updater == *caller {
+                caller.require_auth();
                 return Ok(());
             }
         }
-        // Admin can also update
-        if let Ok(()) = config.admin.try_require_auth() {
+        if config.admin == *caller {
+            caller.require_auth();
             return Ok(());
         }
         Err(RegistryError::Unauthorized)
@@ -479,7 +481,7 @@ impl AgentRegistryContract {
 #[cfg(test)]
 mod test {
     use super::*;
-    use soroban_sdk::{testutils::Address as _, Bytes, Env, String};
+    use soroban_sdk::{testutils::Address as _, Env, String};
 
     fn setup() -> (Env, Address, AgentRegistryContractClient<'static>) {
         let env = Env::default();
@@ -540,7 +542,7 @@ mod test {
         client.add_reputation_updater(&admin);
         let agent = register_agent(&client, &env);
 
-        client.record_success(&agent, &1000_u32, &1_000_000_i128); // 10% return
+        client.record_success(&admin, &agent, &1000_u32, &1_000_000_i128); // 10% return
         let profile = client.get_agent(&agent);
         assert!(profile.reputation_score > 0);
         assert_eq!(profile.total_executions, 1);
@@ -552,7 +554,7 @@ mod test {
         let (env, admin, client) = setup();
         client.add_reputation_updater(&admin);
         let agent = register_agent(&client, &env);
-        client.record_success(&agent, &5000_u32, &10_000_000_i128);
+        client.record_success(&admin, &agent, &5000_u32, &10_000_000_i128);
 
         let before = client.get_agent(&agent).reputation_score;
         client.slash(&agent, &100_u32, &String::from_str(&env, "test slash"));
