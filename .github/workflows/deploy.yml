@@ -44,15 +44,27 @@ jobs:
       - name: Build optimized WASM
         working-directory: contracts
         run: |
-          cargo build --release --target wasm32-unknown-unknown
-          for contract in vault x402_verifier dwallet_verifier; do
+          cargo build --release --target wasm32-unknown-unknown -p x402-verifier
+          cargo build --release --target wasm32-unknown-unknown -p dwallet-verifier
+          cargo build --release --target wasm32-unknown-unknown -p agent-registry
+          cargo build --release --target wasm32-unknown-unknown -p vault
+          cargo build --release --target wasm32-unknown-unknown -p strategy-marketplace
+          cargo build --release --target wasm32-unknown-unknown -p stokvel-vault
+          cargo build --release --target wasm32-unknown-unknown -p zk-attestation
+          cargo build --release --target wasm32-unknown-unknown -p privacy-pool
+          for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation privacy_pool; do
             stellar contract optimize --wasm target/wasm32-unknown-unknown/release/${contract}.wasm
           done
 
       - name: Set up Stellar keys
+        # Secrets must be set in the GitHub "testnet" environment:
+        #   ADMIN_SECRET_KEY, ORACLE_SECRET_KEY
+        env:
+          ADMIN_SECRET_KEY: ${{ secrets.ADMIN_SECRET_KEY }}
+          ORACLE_SECRET_KEY: ${{ secrets.ORACLE_SECRET_KEY }}
         run: |
-          echo "${{ secrets.ADMIN_SECRET_KEY }}" | stellar keys add admin --secret-key
-          echo "${{ secrets.ORACLE_SECRET_KEY }}" | stellar keys add oracle --secret-key
+          echo "$ADMIN_SECRET_KEY" | stellar keys add admin --secret-key
+          echo "$ORACLE_SECRET_KEY" | stellar keys add oracle --secret-key
 
       - name: Deploy to testnet
         env:
@@ -64,4 +76,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: deployment-info
-          path: deployments/
+          path: .env
