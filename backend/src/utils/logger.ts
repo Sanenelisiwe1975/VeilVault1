@@ -23,6 +23,25 @@ export const logger = winston.createLogger({
   ],
 });
 
+type LogLevel = 'info' | 'warn' | 'error' | 'debug';
+
+// Accepts both Pino-style log(obj, msg) and Winston-style log(msg, obj)
+function makeMethod(child: winston.Logger, level: LogLevel) {
+  return (msgOrObj: string | Record<string, unknown>, maybeMsg?: string) => {
+    if (typeof msgOrObj === 'object' && typeof maybeMsg === 'string') {
+      child[level](maybeMsg, msgOrObj);
+    } else {
+      child[level](msgOrObj as string);
+    }
+  };
+}
+
 export function createChildLogger(module: string) {
-  return logger.child({ module });
+  const child = logger.child({ module });
+  return {
+    info:  makeMethod(child, 'info'),
+    warn:  makeMethod(child, 'warn'),
+    error: makeMethod(child, 'error'),
+    debug: makeMethod(child, 'debug'),
+  };
 }

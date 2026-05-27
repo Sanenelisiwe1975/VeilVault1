@@ -8,22 +8,19 @@ async function main(): Promise<void> {
   const app = createServer();
 
   app.listen(config.PORT, () => {
-    logger.info(
-      {
-        port: config.PORT,
-        network: config.STELLAR_NETWORK,
-        vaultContract: config.VAULT_CONTRACT_ID ?? 'not configured',
-        env: config.NODE_ENV,
-      },
-      'VeilVault1 backend started',
-    );
+    logger.info('VeilVault1 backend started', {
+      port: config.PORT,
+      network: config.STELLAR_NETWORK,
+      vaultContract: config.VAULT_CONTRACT_ID ?? 'not configured',
+      env: config.NODE_ENV,
+    });
   });
 
   // Start vault health monitoring
   if (config.VAULT_CONTRACT_ID) {
     monitoringService.onAlert(alert => {
       if (alert.level === 'error') {
-        logger.error(alert, 'VAULT ALERT');
+        logger.error('VAULT ALERT', alert);
       }
     });
     monitoringService.startMonitoring(60_000);
@@ -43,12 +40,12 @@ async function main(): Promise<void> {
   });
 
   process.on('uncaughtException', (err) => {
-    logger.error({ err }, 'Uncaught exception');
+    logger.error('Uncaught exception', { err });
     process.exit(1);
   });
 
   process.on('unhandledRejection', (reason) => {
-    logger.error({ reason }, 'Unhandled rejection');
+    logger.error('Unhandled rejection', { reason });
   });
 }
 
