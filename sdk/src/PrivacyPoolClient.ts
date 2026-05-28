@@ -31,6 +31,12 @@ export interface CommitmentResult {
   nullifierHash: string;
 }
 
+export interface MerklePath {
+  pathElements: string[];   // 20 × 64-char hex sibling hashes, leaf-to-root order
+  pathIndices:  boolean[];  // true = current node is right child at that level
+  root:         string;     // 64-char hex
+}
+
 export interface PrivacyPoolClientConfig {
   baseUrl: string;
   apiKey: string;
@@ -109,6 +115,21 @@ export class PrivacyPoolClient {
       depositorSecret,
       commitment,
     });
+    return data.data;
+  }
+
+  /**
+   * Fetch the 20-level MiMC-5 Merkle sibling path for a deposited leaf.
+   *
+   * Use the returned values directly as prover arguments:
+   *   --path-elements  JSON.stringify(path.pathElements)
+   *   --path-indices   JSON.stringify(path.pathIndices)
+   *   --root           path.root
+   */
+  async getMerklePath(leafIndex: number): Promise<MerklePath> {
+    const { data } = await this.http.get<{ success: true; data: MerklePath }>(
+      `/merkle-path/${leafIndex}`,
+    );
     return data.data;
   }
 

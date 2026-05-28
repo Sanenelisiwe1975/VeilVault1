@@ -17,6 +17,9 @@ prover/target/
 # Prover keys (pk.bin can be hundreds of MB — never commit)
 prover-keys/
 
+# Temp artifacts from VK registration
+prover/ic.json
+
 # FHE keys (NEVER commit)
 fhe-keys/
 *.priv

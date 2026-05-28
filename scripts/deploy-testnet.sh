@@ -231,10 +231,23 @@ stellar contract invoke \
   --denomination 10000000
 info "privacy-pool initialized (denomination: 10 USDC)."
 
-# NOTE: Call set_verifier on the privacy-pool after registering a withdrawal
-# circuit in the zk-attestation contract:
-#   stellar contract invoke --id $POOL_ID ... -- set_verifier \
-#     --zk_verifier $ZK_ID --withdraw_circuit_id <CIRCUIT_ID_BYTES>
+# Wire privacy-pool → zk-attestation (requires WITHDRAW_CIRCUIT_ID in .env)
+if [[ -n "${WITHDRAW_CIRCUIT_ID:-}" ]]; then
+  info "Wiring privacy-pool to zk-attestation verifier (circuit: $WITHDRAW_CIRCUIT_ID)..."
+  stellar contract invoke \
+    --id "$POOL_ID" \
+    --source admin \
+    --network "$NETWORK" \
+    -- set_verifier \
+    --zk_verifier "$ZK_ID" \
+    --withdraw_circuit_id "$WITHDRAW_CIRCUIT_ID"
+  info "privacy-pool: verifier wired."
+else
+  warn "WITHDRAW_CIRCUIT_ID not set — skipping set_verifier."
+  warn "After registering a circuit, run:"
+  warn "  stellar contract invoke --id $POOL_ID --source admin --network $NETWORK"
+  warn "  -- set_verifier --zk_verifier $ZK_ID --withdraw_circuit_id <CIRCUIT_ID>"
+fi
 
 # Write contract IDs to .env
 info "Updating .env with deployed contract IDs..."
@@ -258,6 +271,7 @@ update_env "STRATEGY_MARKETPLACE_CONTRACT_ID" "$MARKETPLACE_ID"
 update_env "STOKVEL_REGISTRY_CONTRACT_ID" "$STOKVEL_ID"
 update_env "ZK_VERIFIER_CONTRACT_ID" "$ZK_ID"
 update_env "PRIVACY_POOL_CONTRACT_ID" "$POOL_ID"
+# WITHDRAW_CIRCUIT_ID is set separately after running: cd prover && cargo run -- setup
 
 echo ""
 info "═══════════════════════════════════════════════════════════"

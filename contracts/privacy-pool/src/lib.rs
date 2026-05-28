@@ -314,6 +314,25 @@ impl PrivacyPoolContract {
         Self::check_known_root(&env, &root)
     }
 
+    /// Fetch a single committed leaf by its index.
+    pub fn get_leaf(env: Env, index: u32) -> Option<BytesN<32>> {
+        env.storage().persistent().get(&DataKey::Leaf(index))
+    }
+
+    /// Fetch up to 100 consecutive leaves starting at `start`.
+    /// Stops early if a leaf is missing (index beyond next_index).
+    pub fn get_leaves(env: Env, start: u32, count: u32) -> Vec<BytesN<32>> {
+        let cap = count.min(100);
+        let mut out = Vec::new(&env);
+        for i in start..start.saturating_add(cap) {
+            match env.storage().persistent().get::<DataKey, BytesN<32>>(&DataKey::Leaf(i)) {
+                Some(leaf) => out.push_back(leaf),
+                None => break,
+            }
+        }
+        out
+    }
+
     fn check_known_root(env: &Env, root: &BytesN<32>) -> bool {
         let idx: u32 = env.storage().instance().get(&DataKey::RootIndex).unwrap_or(0);
         for i in 0..ROOTS_HISTORY_SIZE {
@@ -327,6 +346,9 @@ impl PrivacyPoolContract {
     // ── Internal ─────────────────────────────────────────────────────────────
 
     fn insert_leaf(env: &Env, index: u32, leaf: &BytesN<32>) -> BytesN<32> {
+        env.storage().persistent().set(&DataKey::Leaf(index), leaf);
+        env.storage().persistent().extend_ttl(&DataKey::Leaf(index), LEAF_TTL, LEAF_TTL);
+
         let mut current = leaf.clone();
         let mut current_index = index;
         for level in 0..TREE_DEPTH {

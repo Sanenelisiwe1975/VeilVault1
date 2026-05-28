@@ -5,6 +5,7 @@ import {
   computeCommitment,
   computeNullifierHash,
 } from '../../services/privacy-pool.service';
+import { getMerkleService } from '../../services/merkle.service';
 import { createChildLogger } from '../../utils/logger';
 
 const log = createChildLogger('privacy-pool-routes');
@@ -92,6 +93,29 @@ router.get('/root/:hash/known', async (req: Request, res: Response, next: NextFu
     }
     const known = await svc.isKnownRoot(hash);
     res.json({ success: true, data: { root: hash, known } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/privacy-pool/merkle-path/:leafIndex
+ * Returns the 20-level MiMC-5 Merkle sibling path for a deposited leaf.
+ * Clients use this to generate a withdrawal proof with the Rust prover.
+ *
+ * Response:
+ *   pathElements: string[20]  — 20 × 64-char hex sibling hashes, leaf→root
+ *   pathIndices:  boolean[20] — true = current node is right child at that level
+ *   root:         string      — 64-char hex of the computed root
+ */
+router.get('/merkle-path/:leafIndex', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const leafIndex = parseInt(req.params.leafIndex, 10);
+    if (!Number.isInteger(leafIndex) || leafIndex < 0) {
+      return res.status(400).json({ success: false, error: 'leafIndex must be a non-negative integer' });
+    }
+    const path = await getMerkleService().getMerklePath(leafIndex);
+    res.json({ success: true, data: path });
   } catch (err) {
     next(err);
   }

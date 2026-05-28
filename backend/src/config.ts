@@ -23,6 +23,7 @@ const EnvSchema = z.object({
   STOKVEL_REGISTRY_CONTRACT_ID: z.string().optional(),
   ZK_VERIFIER_CONTRACT_ID: z.string().optional(),
   PRIVACY_POOL_CONTRACT_ID: z.string().optional(),
+  WITHDRAW_CIRCUIT_ID: z.string().optional(),
 
   // Admin keypair (secret key for signing admin transactions)
   ADMIN_SECRET_KEY: z.string(),
