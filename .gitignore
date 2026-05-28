@@ -11,7 +11,11 @@ npm-debug.log*
 
 # Rust
 contracts/target/
+prover/target/
 *.wasm
+
+# Prover keys (pk.bin can be hundreds of MB — never commit)
+prover-keys/
 
 # FHE keys (NEVER commit)
 fhe-keys/
@@ -31,6 +35,9 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Logs (Winston writes here in production)
+logs/
 
 # Test artifacts
 coverage/
