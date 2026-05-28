@@ -1,4 +1,5 @@
 import {
+  Account,
   Contract,
   Networks,
   TransactionBuilder,
@@ -177,7 +178,7 @@ export class PrivacyPoolService {
   async getState(): Promise<PoolState> {
     const result = await this.server.simulateTransaction(
       new TransactionBuilder(
-        await this.server.getAccount('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'),
+        new Account(Keypair.random().publicKey(), '0'),
         { fee: '100', networkPassphrase: this.networkPassphrase },
       )
         .addOperation(this.contract.call('get_config'))
@@ -203,7 +204,7 @@ export class PrivacyPoolService {
   async getCurrentRoot(): Promise<string> {
     const result = await this.server.simulateTransaction(
       new TransactionBuilder(
-        await this.server.getAccount('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'),
+        new Account(Keypair.random().publicKey(), '0'),
         { fee: '100', networkPassphrase: this.networkPassphrase },
       )
         .addOperation(this.contract.call('get_current_root'))
@@ -219,7 +220,7 @@ export class PrivacyPoolService {
   async getTreeState(): Promise<TreeState> {
     const result = await this.server.simulateTransaction(
       new TransactionBuilder(
-        await this.server.getAccount('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'),
+        new Account(Keypair.random().publicKey(), '0'),
         { fee: '100', networkPassphrase: this.networkPassphrase },
       )
         .addOperation(this.contract.call('get_tree_state'))
@@ -240,7 +241,7 @@ export class PrivacyPoolService {
     const nullifierBytes = Buffer.from(nullifierHashHex, 'hex');
     const result = await this.server.simulateTransaction(
       new TransactionBuilder(
-        await this.server.getAccount('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'),
+        new Account(Keypair.random().publicKey(), '0'),
         { fee: '100', networkPassphrase: this.networkPassphrase },
       )
         .addOperation(
@@ -261,7 +262,7 @@ export class PrivacyPoolService {
     const rootBytes = Buffer.from(rootHex, 'hex');
     const result = await this.server.simulateTransaction(
       new TransactionBuilder(
-        await this.server.getAccount('GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN'),
+        new Account(Keypair.random().publicKey(), '0'),
         { fee: '100', networkPassphrase: this.networkPassphrase },
       )
         .addOperation(

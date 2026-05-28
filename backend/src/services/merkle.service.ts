@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import {
+  Account,
   Contract,
   Networks,
   SorobanRpc,
@@ -123,7 +124,7 @@ function buildMerklePath(allLeaves: Buffer[], targetIndex: number): MerklePath {
 
 // ─── Soroban leaf fetcher ─────────────────────────────────────────────────────
 
-const SIM_ACCOUNT = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN';
+import { Keypair } from '@stellar/stellar-sdk';
 const BATCH = 100;
 
 export class MerkleService {
@@ -139,7 +140,7 @@ export class MerkleService {
 
   private async simulate(op: Parameters<Contract['call']>[0], ...args: Parameters<Contract['call']>[1][]) {
     const tx = new TransactionBuilder(
-      await this.server.getAccount(SIM_ACCOUNT),
+      new Account(Keypair.random().publicKey(), '0'),
       { fee: '100', networkPassphrase: this.passphrase },
     )
       .addOperation(this.contract.call(op, ...args))
