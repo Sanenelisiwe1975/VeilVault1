@@ -58,14 +58,21 @@ pub fn proof_to_json(proof: &Proof<Bls12_381>) -> Value {
 
 /// Serialize the verifying key to the JSON needed for `register_circuit`.
 ///
-/// `alpha_g1_neg` is stored pre-negated in the contract to save one negation
-/// per verification.  We negate here so callers pass the raw setup output.
+/// The on-chain pairing check is:
+///   e(A,B) · e(α_neg,β) · e(vk_x,γ_stored) · e(C,δ_stored) == 1_GT
+///
+/// For this to match the standard Groth16 equation
+///   e(A,B) == e(α,β) · e(vk_x,γ) · e(C,δ)
+///
+/// we need:  γ_stored = -γ  and  δ_stored = -δ  and  α_neg = -α.
 pub fn vk_to_register_circuit_json(
     vk: &VerifyingKey<Bls12_381>,
     circuit_id: &[u8; 32],
     circuit_name: &str,
 ) -> Value {
     let alpha_neg: G1Affine = vk.alpha_g1.neg();
+    let gamma_neg: G2Affine = vk.gamma_g2.neg();
+    let delta_neg: G2Affine = vk.delta_g2.neg();
 
     let ic_hex: Vec<String> = vk
         .gamma_abc_g1
@@ -78,8 +85,8 @@ pub fn vk_to_register_circuit_json(
         "circuit_name":  circuit_name,
         "alpha_g1_neg":  hex::encode(g1_to_bytes(&alpha_neg)),
         "beta_g2":       hex::encode(g2_to_bytes(&vk.beta_g2)),
-        "gamma_g2":      hex::encode(g2_to_bytes(&vk.gamma_g2)),
-        "delta_g2":      hex::encode(g2_to_bytes(&vk.delta_g2)),
+        "gamma_g2":      hex::encode(g2_to_bytes(&gamma_neg)),
+        "delta_g2":      hex::encode(g2_to_bytes(&delta_neg)),
         "ic":            ic_hex,
     })
 }
