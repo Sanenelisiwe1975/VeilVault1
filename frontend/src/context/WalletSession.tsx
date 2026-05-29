@@ -58,6 +58,26 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
   const [walletType, setWalletType] = useState<WalletType>(null);
   const [authToken,  setAuthToken]  = useState<string | null>(null);
 
+  // ── Background auth (challenge → sign → session token) ────────────────────
+
+  const authenticate = useCallback(async (addr: string, sk: string | null) => {
+    try {
+      const { data: { challenge } } = await api.post<{ success: boolean; data: { challenge: string } }>(
+        "/auth/challenge", { address: addr }
+      );
+      const signature = sk ? signChallenge(challenge, sk) : null;
+      if (!signature) return; // Freighter users: skip — they use API key for now
+
+      const { data } = await api.post<{ success: boolean; data: { token: string } }>(
+        "/auth/token", { address: addr, challenge, signature }
+      );
+      setAuthToken(data.token);
+      setSessionToken(data.token);
+    } catch {
+      // Auth is optional — app still works with the static API key
+    }
+  }, []);
+
   // ── Secret key connection ──────────────────────────────────────────────────
 
   const connect = useCallback((sk: string): { address: string } | { error: string } => {
@@ -66,11 +86,12 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       setAddress(addr);
       setSecretKey(sk.trim());
       setWalletType("secret-key");
+      authenticate(addr, sk.trim()); // fire-and-forget
       return { address: addr };
     } catch {
       return { error: "Invalid Stellar secret key. Must start with 'S' and be 56 characters." };
     }
-  }, []);
+  }, [authenticate]);
 
   // ── Freighter connection ───────────────────────────────────────────────────
 
