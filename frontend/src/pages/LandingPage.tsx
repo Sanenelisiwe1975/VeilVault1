@@ -442,7 +442,7 @@ const AboutSection: React.FC = () => {
         VeilVault is a programmable privacy and identity layer built on Stellar that enables confidential, compliant, and AI-powered financial coordination.
         By combining zero-knowledge cryptography, selective disclosure and intelligent automation, VeilVault {" "}
         <span style={{ color: colors.primary, fontWeight: 600 }}>allows individuals, communities and autonomous agents to securely manage</span>{" "}
-        assets, identities, payments, and yield strategies without exposing sensitive financial data
+        assets, identities, payments and yield strategies without exposing sensitive financial data
       </p>
     </section>
   );
@@ -452,8 +452,10 @@ const AboutSection: React.FC = () => {
 
 const STEPS = [
   { n: "01", icon: "account_balance_wallet", color: colors.primary,    title: "Connect Wallet",       desc: "Securely link your existing EOA or hardware wallet via our encrypted bridge protocol." },
-  { n: "02", icon: "view_in_ar",             color: colors.tertiary,   title: "Create Your Vault",    desc: "Initialize your multi-chain interaction setup with personalised security parameters." },
+  { n: "02", icon: "view_in_ar",             color: colors.tertiary,   title: "Create Your Vault/ Create Identity",    desc: "Initialize your multi-chain interaction setup with personalised security parameters." },
   { n: "03", icon: "account_balance",        color: colors.secondary,  title: "Deposit & Manage",     desc: "Transfer assets into the vault. View your global balance across all chains in real-time." },
+  { n: "04", icon: "account_balance",        color: colors.secondary,  title: "Option to choose AI or Stockvel/DAO",     desc: "Transfer assets into the vault. View your global balance across all chains in real-time." },
+
 ];
 
 const HowItWorksSection: React.FC<{ onLaunch: () => void }> = ({ onLaunch }) => {
@@ -508,6 +510,8 @@ const HowItWorksSection: React.FC<{ onLaunch: () => void }> = ({ onLaunch }) => 
           display: "flex", alignItems: "center", justifyContent: "space-between",
           flexWrap: "wrap", gap: 24,
         }}>
+
+      
           <div style={{ flex: 1 }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", letterSpacing: "0.15em", marginBottom: 8 }}>STEP 04 &amp; 05</p>
             <p style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 20, color: "#fff", marginBottom: 10 }}>
@@ -566,12 +570,14 @@ const HowItWorksSection: React.FC<{ onLaunch: () => void }> = ({ onLaunch }) => 
 //Features
 
 const FEATURES = [
-  { icon: "verified_user", color: colors.primary,   title: "Non-Custodial Security",      desc: "Your keys, your crypto. We never hold your assets. All interactions are signed locally on your device." },
-  { icon: "hub",           color: colors.tertiary,  title: "Multi-Chain Support",          desc: "Built on Stellar with bridgeless access to Bitcoin, Ethereum, and real-world assets via Ika dWallet." },
-  { icon: "view_in_ar",    color: colors.secondary, title: "Interactive Interface",        desc: "A revolutionary 3D vault experience that makes complex on-chain management feel intuitive and visual." },
-  { icon: "fingerprint",   color: colors.primary,   title: "Privacy-First Architecture",  desc: "Leveraging Zero-Knowledge Proofs and MPC to ensure your transaction history remains your business." },
-  { icon: "bolt",          color: colors.tertiary,  title: "Fast Transactions",            desc: "Optimised routing and batch processing mean your cross-chain moves happen in seconds, not minutes." },
-  { icon: "analytics",     color: colors.secondary, title: "Unified Analytics",            desc: "Deep insights into your entire multi-chain portfolio with professional-grade charting and reporting." },
+  { icon: "verified_user", color: colors.primary,   title: "Zero-Knowledge Identity",      desc: "Privacy-preserving digital identities with selective disclosure and compliance verification." },
+  { icon: "hub",           color: colors.tertiary,  title: "Confidential Transactions",          desc: "Secure payments, balances, and financial activity protected through advanced cryptography." },
+  { icon: "view_in_ar",    color: colors.secondary, title: "AI-Powered Financial Coordination",        desc: "Autonomous AI agents capable of managing treasury operations, payments, and yield strategies under programmable rules." },
+  { icon: "fingerprint",   color: colors.primary,   title: "Private Treasury & Yield Management",  desc: "Confidential asset management and automated investment strategies for individuals, communities, and organizations." },
+  { icon: "bolt",          color: colors.tertiary,  title: "Cross-Chain Asset Coordination",            desc: "Secure onboarding and coordination of assets from Bitcoin, Ethereum, and RWAs onto Stellar infrastructure." },
+  { icon: "hub",           color: colors.secondary, title: "Community Savings Infrastructure",            desc: "Private stokvel and group savings coordination with automated profit-sharing and treasury management." },
+  { icon: "analytics",     color: colors.primary,   title: "Compliance-Friendly Privacy",            desc: "Selective disclosure and optional view keys designed for institutional and regulatory compatibility." },
+  { icon: "analytics",     color: colors.secondary, title: "Developer & Enterprise Infrastructure",            desc: "Modular APIs, SDKs, and smart contract infrastructure for scalable integration and ecosystem expansion." },
 ];
 
 const FeaturesSection: React.FC = () => {
