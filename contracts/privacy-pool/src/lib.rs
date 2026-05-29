@@ -14,10 +14,11 @@
 //!
 //!   seed  = SHA-256(b"veilpool_mimc5_bls12381_rc_v1")
 //!   c[0]  = seed  with byte[0] = 0x00
-//!   c[i]  = SHA-256(c[i-1]) with byte[0] = 0x00
+//!   c[i]  = SHA-256(c[i-1]) with byte[0] = 0x00   ← chains on the ZEROED buffer
 //!   round: (a, b) = (b, a + (b + c[i])^5)  for i in 0..110
 //!   output: (a + b).to_bytes()
-//!   input mapping: byte[0] of each BytesN<32> is zeroed before Fr conversion.
+//!   Leaves are zeroed at byte[0] once on insertion; all subsequent inputs are
+//!   already valid Fr elements and are used directly (no additional zeroing).
 //!
 //! The commitment scheme (SHA-256(secret ‖ nullifier)) is unchanged — it runs
 //! off-chain and is circuit-independent.
@@ -93,6 +94,9 @@ pub enum DataKey {
     Tree,
     Leaf(u32),
     FilledSubtree(u32),
+    /// Fixed zero-subtree hash at depth `level` — used as the right sibling when
+    /// inserting at an even position (Tornado Cash standard incremental tree).
+    ZeroNode(u32),
     Nullifier(BytesN<32>),
     Root(u32),
     RootIndex,
@@ -143,11 +147,17 @@ impl PrivacyPoolContract {
         env.storage().instance().set(&DataKey::MimcConstants, &constants);
 
         // Step 2 — initialise the incremental Merkle tree.
-        //   Zero leaf = 32 zero bytes (maps to Fr(0)).
-        //   Zero subtree at level l = hash_pair(zero_{l-1}, zero_{l-1}).
+        //   Zero leaf = 32 zero bytes (Fr(0)).
+        //   zero_node[level] = MiMC5(zero_node[level-1], zero_node[level-1]).
+        //   FilledSubtree[level] is seeded to zero_node[level] as a safe default;
+        //   it will be overwritten on the first even-position insertion at that level.
         let zero = BytesN::from_array(&env, &[0u8; 32]);
         let mut current = zero.clone();
         for level in 0..TREE_DEPTH {
+            env.storage().persistent().set(&DataKey::ZeroNode(level), &current);
+            env.storage().persistent().extend_ttl(
+                &DataKey::ZeroNode(level), LEAF_TTL, LEAF_TTL,
+            );
             env.storage().persistent().set(&DataKey::FilledSubtree(level), &current);
             env.storage().persistent().extend_ttl(
                 &DataKey::FilledSubtree(level), LEAF_TTL, LEAF_TTL,

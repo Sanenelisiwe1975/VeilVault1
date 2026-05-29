@@ -42,12 +42,18 @@ enum Commands {
         /// Deposit nullifier (32-byte hex)
         #[arg(long)]
         nullifier: String,
-        /// 20 Merkle sibling hashes as a JSON array of 32-byte hex strings
+        /// 20 Merkle sibling hashes as a JSON array of 32-byte hex strings (mutually exclusive with --path-elements-file)
         #[arg(long)]
-        path_elements: String,
-        /// 20 path indices as a JSON array of booleans (true = current node is right child)
+        path_elements: Option<String>,
+        /// File containing 20 Merkle sibling hashes as a JSON array (alternative to --path-elements)
         #[arg(long)]
-        path_indices: String,
+        path_elements_file: Option<PathBuf>,
+        /// 20 path indices as a JSON array of booleans (mutually exclusive with --path-indices-file)
+        #[arg(long)]
+        path_indices: Option<String>,
+        /// File containing 20 path indices as a JSON array of booleans (alternative to --path-indices)
+        #[arg(long)]
+        path_indices_file: Option<PathBuf>,
         /// Merkle root (32-byte hex)
         #[arg(long)]
         root: String,
@@ -170,24 +176,42 @@ fn cmd_setup(output_dir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
+fn resolve_json_arg(
+    inline: Option<&String>,
+    file: Option<&PathBuf>,
+    name: &str,
+) -> Result<String> {
+    match (inline, file) {
+        (Some(_), Some(_)) => anyhow::bail!("--{name} and --{name}-file are mutually exclusive"),
+        (Some(s), None) => Ok(s.clone()),
+        (None, Some(p)) => fs::read_to_string(p)
+            .with_context(|| format!("reading --{name}-file {}", p.display())),
+        (None, None) => anyhow::bail!("one of --{name} or --{name}-file is required"),
+    }
+}
+
 fn cmd_prove(
-    secret_hex:      &str,
-    nullifier_hex:   &str,
-    path_elements_json: &str,
-    path_indices_json:  &str,
-    root_hex:        &str,
-    recipient_hex:   &str,
-    denomination:    u64,
-    pk_path:         &PathBuf,
-    circuit_id_hex:  &str,
-    pool_address:    &str,
-    prover_address:  &str,
-    output:          &Option<PathBuf>,
+    secret_hex:         &str,
+    nullifier_hex:      &str,
+    path_elements_arg:  Option<&String>,
+    path_elements_file: Option<&PathBuf>,
+    path_indices_arg:   Option<&String>,
+    path_indices_file:  Option<&PathBuf>,
+    root_hex:           &str,
+    recipient_hex:      &str,
+    denomination:       u64,
+    pk_path:            &PathBuf,
+    circuit_id_hex:     &str,
+    pool_address:       &str,
+    prover_address:     &str,
+    output:             &Option<PathBuf>,
 ) -> Result<()> {
     let secret        = parse_hex32(secret_hex)?;
     let nullifier     = parse_hex32(nullifier_hex)?;
-    let path_elements = parse_hex32_array::<TREE_DEPTH>(path_elements_json)?;
-    let path_indices  = parse_bool_array::<TREE_DEPTH>(path_indices_json)?;
+    let path_elements_json = resolve_json_arg(path_elements_arg, path_elements_file, "path-elements")?;
+    let path_indices_json  = resolve_json_arg(path_indices_arg, path_indices_file, "path-indices")?;
+    let path_elements = parse_hex32_array::<TREE_DEPTH>(&path_elements_json)?;
+    let path_indices  = parse_bool_array::<TREE_DEPTH>(&path_indices_json)?;
     let root_bytes    = parse_hex32(root_hex)?;
     let recipient_bytes = parse_hex32(recipient_hex)?;
     let circuit_id    = parse_hex32(circuit_id_hex)?;
@@ -308,7 +332,9 @@ fn main() -> Result<()> {
             secret,
             nullifier,
             path_elements,
+            path_elements_file,
             path_indices,
+            path_indices_file,
             root,
             recipient,
             denomination,
@@ -320,8 +346,10 @@ fn main() -> Result<()> {
         } => cmd_prove(
             &secret,
             &nullifier,
-            &path_elements,
-            &path_indices,
+            path_elements.as_ref(),
+            path_elements_file.as_ref(),
+            path_indices.as_ref(),
+            path_indices_file.as_ref(),
             &root,
             &recipient,
             denomination,
