@@ -356,22 +356,31 @@ impl PrivacyPoolContract {
     // ── Internal ─────────────────────────────────────────────────────────────
 
     fn insert_leaf(env: &Env, index: u32, leaf: &BytesN<32>) -> BytesN<32> {
-        env.storage().persistent().set(&DataKey::Leaf(index), leaf);
+        // Zero byte[0] once so the SHA-256 commitment is a valid Fr element.
+        // All subsequent values in the path are Fr outputs — already in range.
+        let mut leaf_arr = leaf.to_array();
+        leaf_arr[0] = 0x00;
+        let leaf_fr = BytesN::from_array(env, &leaf_arr);
+
+        env.storage().persistent().set(&DataKey::Leaf(index), &leaf_fr);
         env.storage().persistent().extend_ttl(&DataKey::Leaf(index), LEAF_TTL, LEAF_TTL);
 
-        let mut current = leaf.clone();
+        let mut current = leaf_fr;
         let mut current_index = index;
         for level in 0..TREE_DEPTH {
             let (left, right) = if current_index % 2 == 0 {
-                let right: BytesN<32> = env.storage().persistent()
-                    .get(&DataKey::FilledSubtree(level))
+                // Even: current is left child; right sibling is the fixed zero subtree.
+                let zero: BytesN<32> = env.storage().persistent()
+                    .get(&DataKey::ZeroNode(level))
                     .unwrap_or_else(|| BytesN::from_array(env, &[0u8; 32]));
+                // Record this node so a future odd-positioned sibling can find it.
                 env.storage().persistent().set(&DataKey::FilledSubtree(level), &current);
                 env.storage().persistent().extend_ttl(
                     &DataKey::FilledSubtree(level), LEAF_TTL, LEAF_TTL,
                 );
-                (current.clone(), right)
+                (current.clone(), zero)
             } else {
+                // Odd: left sibling is the previously filled node at this level.
                 let left: BytesN<32> = env.storage().persistent()
                     .get(&DataKey::FilledSubtree(level))
                     .unwrap_or_else(|| BytesN::from_array(env, &[0u8; 32]));
@@ -385,12 +394,9 @@ impl PrivacyPoolContract {
 
     /// MiMC-5 Feistel compression over BLS12-381 Fr.
     ///
-    /// Construction (matches the circuit description in the module doc):
-    ///   a = to_fr(left),  b = to_fr(right)
-    ///   for each round constant c[i]:
-    ///       t   = (b + c[i])^5
-    ///       a,b = b, a + t        ← Feistel swap
-    ///   return (a + b).to_bytes()
+    /// Both inputs MUST already be valid Fr elements (canonical bytes < field order).
+    /// Leaves are pre-zeroed at byte[0] in `insert_leaf`; all other inputs (zero
+    /// nodes, filled subtrees, round constants) are produced by prior Fr operations.
     fn hash_pair(env: &Env, left: &BytesN<32>, right: &BytesN<32>) -> BytesN<32> {
         let bls = env.crypto().bls12_381();
         let constants: Vec<BytesN<32>> = env
@@ -399,17 +405,15 @@ impl PrivacyPoolContract {
             .get(&DataKey::MimcConstants)
             .expect("pool not initialized");
 
-        let mut a = Self::to_fr(env, left);
-        let mut b = Self::to_fr(env, right);
+        let mut a = Fr::from_bytes(left.clone());
+        let mut b = Fr::from_bytes(right.clone());
 
         for i in 0..MIMC_ROUNDS {
             let c = Fr::from_bytes(constants.get(i).unwrap());
-            // S-box: t = (b + c)^5  via 3 multiplications
             let t  = bls.fr_add(&b, &c);
             let t2 = bls.fr_mul(&t, &t);
             let t4 = bls.fr_mul(&t2, &t2);
             let t5 = bls.fr_mul(&t4, &t);
-            // Feistel: (a, b) ← (b, a + t5)
             let new_b = bls.fr_add(&a, &t5);
             a = b;
             b = new_b;
@@ -418,17 +422,10 @@ impl PrivacyPoolContract {
         bls.fr_add(&a, &b).to_bytes()
     }
 
-    /// Map a 32-byte value to a BLS12-381 Fr element.
-    /// Zeroing byte[0] (the MSB in big-endian) constrains the value to 248 bits,
-    /// which is always less than the Fr modulus (~255 bits) — so from_bytes never panics.
-    fn to_fr(env: &Env, bytes: &BytesN<32>) -> Fr {
-        let mut arr = bytes.to_array();
-        arr[0] = 0x00;
-        Fr::from_bytes(BytesN::from_array(env, &arr))
-    }
-
     /// Derive MIMC_ROUNDS round constants from a public SHA-256 seed chain.
-    /// Each constant has its top byte zeroed so it is a valid Fr element.
+    ///
+    /// c[0] = SHA-256(seed) with byte[0] = 0
+    /// c[i] = SHA-256(c[i-1]) with byte[0] = 0   ← chains on the ZEROED buffer
     fn compute_mimc_constants(env: &Env) -> Vec<BytesN<32>> {
         let mut constants: Vec<BytesN<32>> = Vec::new(env);
 
@@ -436,16 +433,18 @@ impl PrivacyPoolContract {
         for b in b"veilpool_mimc5_bls12381_rc_v1" {
             seed_data.push_back(*b);
         }
-        let mut h = env.crypto().sha256(&seed_data);
+        let h = env.crypto().sha256(&seed_data);
+        let mut arr = h.to_array();
+        arr[0] = 0x00;
 
         for _ in 0..MIMC_ROUNDS {
-            let mut arr = h.to_array();
-            arr[0] = 0x00;
             constants.push_back(BytesN::from_array(env, &arr));
-            // Chain: next constant = SHA-256(current)
+            // Chain on the zeroed buffer (not the original SHA-256 output)
             let mut d = Bytes::new(env);
-            for b in h.to_array() { d.push_back(b); }
-            h = env.crypto().sha256(&d);
+            for b in arr { d.push_back(b); }
+            let next_h = env.crypto().sha256(&d);
+            arr = next_h.to_array();
+            arr[0] = 0x00;
         }
         constants
     }
