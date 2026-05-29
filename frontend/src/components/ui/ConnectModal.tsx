@@ -50,7 +50,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
             {mode === "choose" ? "Connect Wallet" : "Enter Secret Key"}
           </GradientText>
           {!required && onClose && (
-            <button type="button" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline }}>
+            <button type="button" aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline }}>
               <MaterialIcon name="close" size={22} />
             </button>
           )}
