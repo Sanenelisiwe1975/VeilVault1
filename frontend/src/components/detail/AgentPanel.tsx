@@ -233,12 +233,12 @@ export const AgentPanel: React.FC = () => {
       >
         {stateLabel[state]}
       </GradientButton>
-      {!ready && !publicKey && (
+      {!ready && !address && (
         <p style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 8 }}>
           Connect wallet to run agent cycle
         </p>
       )}
-      {publicKey && !vault?.strategyParamsSet && (
+      {address && !vault?.strategyParamsSet && (
         <p style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 8 }}>
           Setup vault + strategy params first
         </p>
