@@ -9,6 +9,7 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { Keypair } from "@stellar/stellar-sdk";
 import { signChallenge } from "../lib/stellar";
+import { api, setSessionToken } from "../lib/api";
 
 export type WalletType = "secret-key" | "freighter" | null;
 
