@@ -49,9 +49,9 @@ Stellar Testnet
 | Strategy Marketplace | `CB25FJV362DOLINALRMLOQMJEMDV3UF4D3ZIVTBUBKEQWZWWZONDAKPW` |
 | Stokvel Vault | `CAFXKDFFS2LFGG2V3EMYOMXPOB5HZWF367CY42Z4WWKA2ZQPKM7TPODM` |
 | ZK Attestation | `CBLYCZWDBYB6JQ4BAZSPUTCR77423VXE4QZOI5ZVZO6XQQ5YEVNPOR7A` |
-| Privacy Pool (10 USDC) | `CABRBWIB4Z53YKUDKSG6MWJBE75XSMB2JWUDIEDXKVG2YTOVOC4TJXYA` |
+| Privacy Pool (10 XLM) | `CAE3XBP6E5DFLAEZXJNYQ2HMJWKRIXP44U2EE6E5VRGLLGCLS4PO24ZI` |
 
-Asset: USDC testnet SAC — `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA`
+Asset: Native XLM — SAC `CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC`
 
 ---
 
@@ -87,7 +87,7 @@ Community savings pool modelled on traditional South African stokvels. Members c
 Registers ZK verification circuits (Groth16 over BLS12-381) and verifies proofs on-chain. Used by the agent-registry for attribute attestations (e.g. "agent's KYC score ≥ 700" without revealing the score).
 
 #### `privacy-pool`
-Fixed-denomination shielded mixer (10 USDC per note). Deposits insert a SHA-256 commitment leaf into a depth-20 Merkle tree. Internal tree hashing uses **MiMC-5 Feistel over BLS12-381 Fr** (110 rounds, ZK-native field), yielding ~6,600 R1CS constraints for a full withdrawal proof vs ~27,000 for SHA-256 per call. Withdrawals consume a nullifier to prevent double-spends.
+Fixed-denomination shielded mixer (10 XLM per note). Deposits insert a SHA-256 commitment leaf into a depth-20 Merkle tree. Internal tree hashing uses **MiMC-5 Feistel over BLS12-381 Fr** (110 rounds, ZK-native field), yielding ~6,600 R1CS constraints for a full withdrawal proof vs ~27,000 for SHA-256 per call. Withdrawals consume a nullifier to prevent double-spends and require a Groth16 ZK proof verified on-chain via the `zk-attestation` contract.
 
 #### `x402-verifier` / `dwallet-verifier`
 Payment attestation and dWallet signature verification contracts used by the vault and backend middleware.
@@ -112,7 +112,48 @@ cd backend && npm run dev
 
 ---
 
-### 3. TypeScript SDK (`/sdk`)
+### 3. Groth16 Prover (`/prover`)
+
+Rust CLI that generates Groth16 withdrawal proofs for the privacy pool. Requires a one-time trusted setup that produces `pk.bin` and `vk.bin`.
+
+**Withdrawal flow:**
+
+```
+1. Run trusted setup (once):
+   cd prover && cargo run --release -- setup --output-dir prover-keys
+
+2. Register the verifying key on the zk-attestation contract:
+   cargo run --release -- format-vk \
+     --vk prover-keys/vk.bin \
+     --circuit-id <32-byte-hex> \
+     --circuit-name veilpool_withdraw_v1 > vk.json
+   # Then call register_circuit on the zk-attestation contract with vk.json values.
+
+3. Compute the commitment (off-chain, before depositing):
+   cargo run --release -- commitment \
+     --secret <32-byte-hex> --nullifier <32-byte-hex>
+
+4. After depositing, generate a withdrawal proof:
+   cargo run --release -- prove \
+     --secret <hex> --nullifier <hex> \
+     --path-elements-file pe.json \
+     --path-indices-file pi.json \
+     --root <on-chain-root-hex> \
+     --recipient <32-byte-hex> \
+     --denomination 10000000 \
+     --circuit-id <32-byte-hex> \
+     --pk prover-keys/pk.bin \
+     --output proof.json
+
+5. Submit proof on-chain via the zk-attestation contract's attest_performance,
+   then call the privacy pool's withdraw with the returned attestation_id.
+```
+
+**VK encoding note:** When registering the verifying key, `alpha_g1_neg`, `gamma_g2`, and `delta_g2` must be the **negated** curve points relative to the raw arkworks output. The `format-vk` command handles this automatically.
+
+---
+
+### 4. TypeScript SDK (`/sdk`)
 
 ```typescript
 import {
@@ -266,9 +307,11 @@ await pool.withdraw({ nullifier, root: currentRoot, proof: groth16Proof, recipie
 ### ZK Attestation
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/api/attestation/register-circuit` | Register verification circuit |
-| `POST` | `/api/attestation/verify` | Verify Groth16 proof on-chain |
-| `GET` | `/api/attestation/circuits` | List registered circuits |
+| `POST` | `/api/attestations/register-circuit` | Register verification circuit |
+| `POST` | `/api/attestations/verify` | Verify Groth16 proof on-chain |
+| `POST` | `/api/attestations/attest` | Submit proof, get attestation ID |
+| `GET` | `/api/attestations/:id` | Get attestation record |
+| `GET` | `/api/attestations/:id/valid` | Check if attestation is valid |
 
 ### Multi-Agent Orchestration
 | Method | Path | Description |
@@ -312,7 +355,9 @@ Strategy parameters are encrypted with [TFHE-rs](https://github.com/zama-ai/tfhe
 [Ika dWallets](https://www.ika.xyz) are MPC wallets that never expose a private key and can sign for multiple chains. Vault agents use dWallets so no single party holds agent signing keys.
 
 ### Privacy Pool (MiMC-5 Mixer)
-Fixed denomination (10 USDC) shielded transfers via Merkle commitments. The tree uses **MiMC-5 Feistel** over the BLS12-381 scalar field — the same field used by Groth16 proofs — so withdrawal ZK circuits are ~10× smaller than SHA-256-based designs.
+Fixed denomination (10 XLM) shielded transfers via Merkle commitments. The tree uses **MiMC-5 Feistel** over the BLS12-381 scalar field — the same field used by Groth16 proofs — so withdrawal ZK circuits are ~10× smaller than SHA-256-based designs.
+
+Withdrawal requires a Groth16 proof generated by the `prover/` CLI. The proof is submitted to the `zk-attestation` contract, which verifies it on-chain and returns an `attestation_id`. The privacy pool's `withdraw` checks `is_valid(attestation_id)` before releasing funds.
 
 ### KYA (Know Your Agent)
 Agent reputation is computed on-chain from actual position PnL. Level thresholds:
@@ -341,8 +386,11 @@ Agents can attach ZK attribute proofs for regulatory compliance without revealin
 ## Development
 
 ```bash
-# Contract tests (requires testutils feature)
-cd contracts && cargo test --features testutils
+# Contract tests
+cd contracts && cargo test
+
+# Build privacy-pool WASM
+cd contracts && cargo build --release --target wasm32-unknown-unknown -p privacy-pool
 
 # Backend dev server
 cd backend && npm run dev
@@ -352,6 +400,16 @@ cd backend && npm run typecheck
 
 # SDK build
 cd sdk && npm run build
+
+# Prover — trusted setup (one-time)
+cd prover && cargo run --release -- setup --output-dir prover-keys
+
+# Prover — generate withdrawal proof
+cd prover && cargo run --release -- prove \
+  --secret <hex> --nullifier <hex> \
+  --path-elements-file pe.json --path-indices-file pi.json \
+  --root <hex> --recipient <hex> --denomination 10000000 \
+  --circuit-id <hex> --pk prover-keys/pk.bin --output proof.json
 
 # Docker
 docker compose up -d
