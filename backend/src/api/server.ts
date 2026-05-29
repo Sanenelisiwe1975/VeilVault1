@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { requestId, apiKeyAuth } from './middleware/auth.middleware';
+import authRoutes from './routes/auth.routes';
 import vaultRoutes from './routes/vault.routes';
 import agentRoutes from './routes/agent.routes';
 import paymentRoutes from './routes/payment.routes';
