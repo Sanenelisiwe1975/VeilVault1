@@ -81,4 +81,77 @@ router.delete('/dwallet/:id', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Execute Strategy ─────────────────────────────────────────────────────────
+
+const ExecuteStrategyBody = z.object({
+  strategyId:     z.string().min(1),
+  vaultAddress:   z.string().min(56).optional(),
+  agentAddress:   z.string().min(56),
+  agentSecretKey: z.string().min(56),
+  amount:         z.string().regex(/^\d+$/),
+  options: z.object({
+    encryptParams:  z.boolean().optional(),
+    strategyParams: z.record(z.unknown()).optional(),
+  }).optional(),
+});
+
+/**
+ * POST /api/agent/execute-strategy
+ *
+ * Execute a yield strategy on behalf of an AI agent.
+ * Validates agent is registered, runs the strategy, and returns execution result.
+ */
+router.post('/execute-strategy', async (req: Request, res: Response) => {
+  const parsed = ExecuteStrategyBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: parsed.error.flatten() });
+    return;
+  }
+
+  const d = parsed.data;
+  try {
+    // 1. Verify the agent is registered in the KYA registry
+    const registry = getAgentRegistryService(getStellarClient());
+    const profile  = await registry.getProfile(d.agentAddress).catch(() => null);
+    if (!profile) {
+      res.status(403).json({ success: false, error: 'Agent not registered. Call POST /api/registry/register first.' });
+      return;
+    }
+    if (profile.banned) {
+      res.status(403).json({ success: false, error: 'Agent is banned.' });
+      return;
+    }
+
+    // 2. Execute the strategy
+    const result = await strategyService.executeStrategy({
+      strategyId:     d.strategyId,
+      vaultContractId: d.vaultAddress ?? '',
+      amount:         BigInt(d.amount),
+      agentAddress:   d.agentAddress,
+      agentSecretKey: d.agentSecretKey,
+      encryptedParams: undefined,
+      useDWallet:     false,
+    });
+
+    log.info({ strategyId: d.strategyId, agent: d.agentAddress }, 'Strategy executed by agent');
+
+    res.json({
+      success: true,
+      data: {
+        txHash:        result.txHash,
+        positionId:    result.positionId,
+        strategyId:    d.strategyId,
+        agentAddress:  d.agentAddress,
+        amount:        d.amount,
+        executedAt:    Math.floor(Date.now() / 1000),
+        estimatedApy:  result.estimatedApy,
+        status:        'open',
+      },
+    });
+  } catch (err) {
+    log.error({ err, strategyId: d.strategyId }, 'Strategy execution failed');
+    res.status(500).json({ success: false, error: String(err) });
+  }
+});
+
 export default router;
