@@ -436,14 +436,13 @@ const AboutSection: React.FC = () => {
         fontSize: isMobile ? "2.2rem" : "3.5rem",
         fontWeight: 900, letterSpacing: "-0.03em", color: "#fff", marginBottom: 28,
       }}>
-        What is VeilVaults?
+        What is VeilVault?
       </h2>
       <p style={{ color: colors.onSurfaceVariant, fontSize: isMobile ? 16 : 20, lineHeight: 1.8, fontWeight: 300 }}>
-        VeilVaults is a decentralised application (dApp) that helps you securely manage your digital assets
-        across different blockchains in one place. Instead of juggling multiple wallets and platforms,
-        VeilVaults gives you a{" "}
-        <span style={{ color: colors.primary, fontWeight: 600 }}>unified, privacy-focused vault</span>{" "}
-        where your assets remain under your control at all times.
+        VeilVault is a programmable privacy and identity layer built on Stellar that enables confidential, compliant, and AI-powered financial coordination.
+        By combining zero-knowledge cryptography, selective disclosure and intelligent automation, VeilVault {" "}
+        <span style={{ color: colors.primary, fontWeight: 600 }}>allows individuals, communities and autonomous agents to securely manage</span>{" "}
+        assets, identities, payments, and yield strategies without exposing sensitive financial data
       </p>
     </section>
   );
@@ -483,7 +482,7 @@ const HowItWorksSection: React.FC<{ onLaunch: () => void }> = ({ onLaunch }) => 
           onMouseEnter={e => (e.currentTarget.style.background = colors.surfaceContainerHighest)}
           onMouseLeave={e => (e.currentTarget.style.background = colors.surfaceContainerHigh)}
           >
-            <div className="step-icon" style={{
+            <div className="step-VeilVaultsicon" style={{
               width: 44, height: 44, borderRadius: 4,
               background: `${color}18`,
               display: "flex", alignItems: "center", justifyContent: "center",
