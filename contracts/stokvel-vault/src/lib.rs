@@ -8,7 +8,7 @@
 //! - All proposals (withdrawals, distributions, membership changes) require
 //!   M-of-N member approvals before execution
 //! - Contributions are deposited into the linked VeilVault for yield generation
-//! - Individual contributions are tracked privately (members see total, not each other's amounts)
+//! - Individual contributions are tracked privately (members see total, not each others amounts)
 //! - Distributions are proportional to contribution share
 //!
 //! # Use cases (African emerging markets)

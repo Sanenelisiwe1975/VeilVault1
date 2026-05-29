@@ -62,7 +62,7 @@ pub fn compute_merkle_root(
     current
 }
 
-// ─── Withdraw Circuit ─────────────────────────────────────────────────────────
+//  Withdraw Circuit 
 
 /// Groth16 R1CS circuit for privacy pool withdrawal.
 ///
@@ -100,7 +100,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
     fn generate_constraints(self, cs: ConstraintSystemRef<Fr>) -> Result<(), SynthesisError> {
         use SynthesisError::AssignmentMissing;
 
-        // ── Public inputs (allocated first → IC indices 1..5) ────────────────
+        //  Public inputs (allocated first → IC indices 1..5) 
         let root_pub = FpVar::new_input(cs.clone(), || {
             self.root.ok_or(AssignmentMissing)
         })?;
@@ -117,7 +117,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             self.protocol_version.ok_or(AssignmentMissing)
         })?;
 
-        // ── Private witness: secret (32 bytes) ───────────────────────────────
+        //  Private witness: secret (32 bytes) 
         let secret_bytes: Vec<UInt8<Fr>> = (0..32_usize)
             .map(|i| {
                 UInt8::new_witness(cs.clone(), || {
@@ -126,7 +126,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             })
             .collect::<Result<_, _>>()?;
 
-        // ── Private witness: nullifier (32 bytes) ────────────────────────────
+        //  Private witness: nullifier (32 bytes) 
         let nullifier_bytes: Vec<UInt8<Fr>> = (0..32_usize)
             .map(|i| {
                 UInt8::new_witness(cs.clone(), || {
@@ -135,7 +135,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
             })
             .collect::<Result<_, _>>()?;
 
-        // ── Commitment = SHA-256(secret ‖ nullifier) ─────────────────────────
+        //  Commitment = SHA-256(secret ‖ nullifier)
         let mut preimage = secret_bytes.clone();
         preimage.extend_from_slice(&nullifier_bytes);
         // Sha256Gadget::digest returns DigestVar<Fr>; convert to [UInt8<Fr>] via ToBytesGadget.
@@ -144,14 +144,14 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
         // leaf Fr = to_fr(commitment_bytes)
         let leaf = to_fr_gadget(&commitment_bytes)?;
 
-        // ── Nullifier hash = SHA-256(nullifier) ──────────────────────────────
+        //  Nullifier hash = SHA-256(nullifier)
         let null_hash_bytes = Sha256Gadget::<Fr>::digest(&nullifier_bytes)?.to_bytes()?;
         let null_hash_computed = to_fr_gadget(&null_hash_bytes)?;
 
         // Enforce: computed nullifier_hash == public nullifier_hash
         null_hash_computed.enforce_equal(&null_hash_pub)?;
 
-        // ── Merkle path verification ──────────────────────────────────────────
+        //  Merkle path verification 
         let consts = compute_round_constants();
         let mut current = leaf;
 

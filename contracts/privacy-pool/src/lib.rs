@@ -1,4 +1,4 @@
-
+﻿
 //! Privacy Pool Contract — ZK-native Merkle tree (MiMC-5 over BLS12-381 Fr)
 //!
 //! # Hash function upgrade (v2)
@@ -45,8 +45,6 @@ use soroban_sdk::{
     Address, Bytes, BytesN, Env, Val, Vec,
 };
 
-// ─── Errors ──────────────────────────────────────────────────────────────────
-
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
@@ -63,8 +61,6 @@ pub enum PoolError {
     Paused              = 10,
     InvalidWithdrawAmt  = 11,
 }
-
-// ─── Storage types ───────────────────────────────────────────────────────────
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -104,7 +100,6 @@ pub enum DataKey {
     MimcConstants,
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
 
 const TREE_DEPTH: u32          = 20;
 const MAX_LEAVES: u32          = 1 << TREE_DEPTH;
@@ -117,7 +112,6 @@ const LEAF_TTL: u32            = 1_000_000;
 /// attacks on the Feistel structure.
 const MIMC_ROUNDS: u32 = 110;
 
-// ─── Contract ────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct PrivacyPoolContract;
@@ -125,7 +119,6 @@ pub struct PrivacyPoolContract;
 #[contractimpl]
 impl PrivacyPoolContract {
 
-    // ── Initialisation ───────────────────────────────────────────────────────
 
     pub fn initialize(
         env: Env,
@@ -141,7 +134,7 @@ impl PrivacyPoolContract {
             return Err(PoolError::InvalidDenomination);
         }
 
-        // Step 1 — pre-compute and store MiMC round constants so every
+        // Step 1 — precompute and store MiMC round constants so every
         // subsequent hash_pair call is cheap (no SHA-256 per deposit).
         let constants = Self::compute_mimc_constants(&env);
         env.storage().instance().set(&DataKey::MimcConstants, &constants);
@@ -213,7 +206,6 @@ impl PrivacyPoolContract {
         Ok(())
     }
 
-    // ── Deposit ──────────────────────────────────────────────────────────────
 
     pub fn deposit(
         env: Env,
@@ -250,8 +242,6 @@ impl PrivacyPoolContract {
         );
         Ok(leaf_index)
     }
-
-    // ── Withdraw ─────────────────────────────────────────────────────────────
 
     pub fn withdraw(
         env: Env,
@@ -299,7 +289,6 @@ impl PrivacyPoolContract {
         Ok(())
     }
 
-    // ── Views ────────────────────────────────────────────────────────────────
 
     pub fn get_config(env: Env) -> Result<PoolConfig, PoolError> {
         Self::load_config(&env)
@@ -353,7 +342,6 @@ impl PrivacyPoolContract {
         false
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────────
 
     fn insert_leaf(env: &Env, index: u32, leaf: &BytesN<32>) -> BytesN<32> {
         // Zero byte[0] once so the SHA-256 commitment is a valid Fr element.
@@ -470,7 +458,6 @@ impl PrivacyPoolContract {
     }
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {
@@ -495,6 +482,7 @@ mod test {
     fn setup() -> Setup {
         let env = Env::default();
         env.mock_all_auths();
+        env.budget().reset_unlimited();
         let admin = Address::generate(&env);
         let token_admin = Address::generate(&env);
         let token = env.register_stellar_asset_contract_v2(token_admin.clone());
@@ -582,6 +570,7 @@ mod test {
     fn test_zero_denomination_fails() {
         let env = Env::default();
         env.mock_all_auths();
+        env.budget().reset_unlimited();
         let admin = Address::generate(&env);
         let asset = Address::generate(&env);
         let id = env.register_contract(None, PrivacyPoolContract);

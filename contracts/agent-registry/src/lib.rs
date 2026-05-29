@@ -191,7 +191,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Agent registration ───────────────────────────────────────────────────
+    //  Agent registration 
 
     pub fn register(
         env: Env,
@@ -292,7 +292,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Reputation updates ───────────────────────────────────────────────────
+    //  Reputation updates
 
     pub fn record_success(
         env: Env,
@@ -347,7 +347,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Admin actions ────────────────────────────────────────────────────────
+    //  Admin actions
 
     pub fn slash(
         env: Env,
@@ -397,7 +397,7 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Selective Disclosure Attributes ──────────────────────────────────────
+    //  Selective Disclosure Attributes
 
     /// Set the zk-attestation contract address used to validate attribute proofs.
     pub fn set_zk_verifier(env: Env, zk_verifier: Address) -> Result<(), RegistryError> {
@@ -496,8 +496,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    // ── Views ────────────────────────────────────────────────────────────────
-
     pub fn get_agent(env: Env, agent: Address) -> Result<AgentProfile, RegistryError> {
         Self::get_profile(&env, &agent)
     }
@@ -556,8 +554,6 @@ impl AgentRegistryContract {
             .ok_or(RegistryError::AttributeTypeNotFound)
     }
 
-    // ── Internal helpers ─────────────────────────────────────────────────────
-
     fn get_config(env: &Env) -> Result<RegistryConfig, RegistryError> {
         env.storage()
             .instance()
@@ -608,7 +604,6 @@ impl AgentRegistryContract {
     }
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {

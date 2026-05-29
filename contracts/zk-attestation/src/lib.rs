@@ -6,7 +6,7 @@ use soroban_sdk::{
     vec, Address, Bytes, BytesN, Env, String, Vec,
 };
 
-// BLS12-381 curve order r minus 1, big-endian — used by off-chain prover tooling
+// BLS12-381 curve order r minus 1, big-endian — used by offchain prover tooling
 // to compute -P = (r-1)*P without Fp arithmetic.
 // r   = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
 // r-1 = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000
@@ -17,7 +17,6 @@ pub const FR_NEG_ONE: [u8; 32] = [
     0x00, 0x00,
 ];
 
-// ─── Storage Keys ────────────────────────────────────────────────────────────
 
 #[contracttype]
 #[derive(Clone)]
@@ -28,8 +27,6 @@ pub enum DataKey {
     AttestationCount,
     Paused,
 }
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 /// Groth16 verifying key.  alpha_g1 is stored pre-negated to save gas at
 /// verification time (caller computes -α₁ = (r-1)·α₁ off-chain).
@@ -74,14 +71,12 @@ pub struct PerformanceAttestation {
     pub timestamp: u64,
 }
 
-// ─── Contract ────────────────────────────────────────────────────────────────
 
 #[contract]
 pub struct ZkAttestationContract;
 
 #[contractimpl]
 impl ZkAttestationContract {
-    // ── Admin ────────────────────────────────────────────────────────────────
 
     pub fn initialize(env: Env, admin: Address) {
         if env.storage().instance().has(&DataKey::Admin) {
@@ -100,7 +95,7 @@ impl ZkAttestationContract {
         Self::bump_instance(&env);
     }
 
-    // ── Verifying Key ────────────────────────────────────────────────────────
+    // Verifying Key
 
     /// Register (or overwrite) a Groth16 verifying key.
     /// `alpha_g1_neg` must be the negation of the trusted-setup α₁ point.
@@ -145,9 +140,9 @@ impl ZkAttestationContract {
             .expect("circuit not found")
     }
 
-    // ── Groth16 Proof Verification ───────────────────────────────────────────
+    // Groth16 Proof Verification
 
-    /// Verify a Groth16 proof on-chain using Soroban's BLS12-381 host functions.
+    /// Verify a Groth16 proof onchain using Soroban's BLS12-381 host functions.
     ///
     /// Equation verified:
     ///   e(A, B) · e(−α₁, β₂) · e(vk_x, γ₂) · e(C, δ₂) == 1_GT
@@ -207,7 +202,7 @@ impl ZkAttestationContract {
         bls.pairing_check(vp1, vp2)
     }
 
-    // ── Performance Attestations ─────────────────────────────────────────────
+    //  Performance Attestations
 
     /// Submit and verify a vault performance attestation.
     ///
@@ -321,7 +316,6 @@ impl ZkAttestationContract {
             .unwrap_or(false)
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
 
     fn require_admin(env: &Env) {
         let admin: Address = env
@@ -350,7 +344,6 @@ impl ZkAttestationContract {
     }
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

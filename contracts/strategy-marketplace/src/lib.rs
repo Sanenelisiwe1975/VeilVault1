@@ -1,7 +1,7 @@
 //! Strategy Marketplace Contract
 //!
-//! A permissionless on-chain marketplace where developers publish audited yield
-//! strategies, and AI agents pay a per-execution USDC fee to run them.
+//! A permissionless onchain marketplace where developers publish audited yield
+//! strategies, and AI agents pay a per execution USDC fee to run them.
 //!
 //! # Economics
 //! - Developer publishes a strategy and sets an execution_fee (SAC token amount)
@@ -153,8 +153,6 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Strategy publication ──────────────────────────────────────────────────
-
     /// Developer publishes a new strategy.
     /// min_amount, max_amount, and estimated_apr_bps default to 0 and can be
     /// updated via a separate admin call or read from the strategy listing.
@@ -214,7 +212,7 @@ impl StrategyMarketplaceContract {
         env.storage().persistent().set(&strat_key, &listing);
         env.storage().persistent().extend_ttl(&strat_key, STRATEGY_TTL, STRATEGY_TTL);
 
-        // Index author's strategies
+        // Index authors strategies
         let count_key = DataKey::AuthorStrategyCount(author.clone());
         let idx: u64 = env.storage().persistent()
             .get::<DataKey, u64>(&count_key)
@@ -236,7 +234,6 @@ impl StrategyMarketplaceContract {
         Ok(strategy_id)
     }
 
-    // ── Strategy execution ────────────────────────────────────────────────────
 
     /// Agent executes a strategy.
     ///
@@ -313,7 +310,6 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Admin actions ─────────────────────────────────────────────────────────
 
     /// Mark a strategy as audited and record the audit report hash.
     pub fn audit_strategy(
@@ -361,7 +357,6 @@ impl StrategyMarketplaceContract {
         Ok(())
     }
 
-    // ── Views ─────────────────────────────────────────────────────────────────
 
     pub fn get_strategy_info(env: Env, strategy_id: BytesN<32>) -> Result<StrategyListing, MarketplaceError> {
         Self::get_strategy(&env, &strategy_id)
@@ -377,7 +372,6 @@ impl StrategyMarketplaceContract {
             .unwrap_or(0)
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
 
     fn get_config(env: &Env) -> Result<MarketplaceConfig, MarketplaceError> {
         env.storage().instance()
@@ -427,8 +421,6 @@ impl StrategyMarketplaceContract {
         }
     }
 }
-
-// ─── Tests ───────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod test {

@@ -17,7 +17,7 @@ use circuit::{compute_merkle_root, to_fr_native, WithdrawCircuit, TREE_DEPTH};
 use mimc::compute_round_constants;
 use serialize::{vk_to_register_circuit_json, withdrawal_payload_json};
 
-// ─── CLI ─────────────────────────────────────────────────────────────────────
+//  CLI 
 
 #[derive(Parser)]
 #[command(name = "veilpool-prover", about = "VeilPool Groth16 withdrawal prover")]
@@ -108,7 +108,7 @@ enum Commands {
     },
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+//  Helpers 
 
 fn parse_hex32(s: &str) -> Result<[u8; 32]> {
     let bytes = hex::decode(s.trim_start_matches("0x"))
@@ -138,7 +138,7 @@ fn parse_bool_array<const N: usize>(json: &str) -> Result<[bool; N]> {
     Ok(out)
 }
 
-// ─── Subcommands ─────────────────────────────────────────────────────────────
+//  Subcommands 
 
 fn cmd_setup(output_dir: &PathBuf) -> Result<()> {
     fs::create_dir_all(output_dir).with_context(|| "creating output directory")?;
@@ -321,7 +321,7 @@ fn cmd_nullifier_hash(nullifier_hex: &str) -> Result<()> {
     Ok(())
 }
 
-// ─── Entry point ─────────────────────────────────────────────────────────────
+//  Entry point 
 
 fn main() -> Result<()> {
     let cli = Cli::parse();

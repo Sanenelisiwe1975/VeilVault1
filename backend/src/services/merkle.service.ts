@@ -55,9 +55,17 @@ function computeRoundConstants(): bigint[] {
 
 const ROUND_CONSTANTS = computeRoundConstants();
 
+function bufToFr(bytes: Buffer): bigint {
+  let v = 0n;
+  for (let i = 0; i < 32; i++) v = (v << 8n) | BigInt(bytes[i]);
+  return v;
+}
+
 function hashPair(left: Buffer, right: Buffer): Buffer {
-  let a = toFr(left);
-  let b = toFr(right);
+  // Inputs are already valid Fr elements (leaves are pre-zeroed by the contract;
+  // intermediate values are Fr outputs).  No byte[0] zeroing here.
+  let a = bufToFr(left);
+  let b = bufToFr(right);
   for (const c of ROUND_CONSTANTS) {
     const t  = frAdd(b, c);
     const t2 = frMul(t, t);
