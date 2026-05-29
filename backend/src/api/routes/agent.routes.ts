@@ -138,14 +138,14 @@ router.post('/execute-strategy', async (req: Request, res: Response) => {
     res.json({
       success: true,
       data: {
-        txHash:        result.txHash,
-        positionId:    result.positionId,
-        strategyId:    d.strategyId,
-        agentAddress:  d.agentAddress,
-        amount:        d.amount,
-        executedAt:    Math.floor(Date.now() / 1000),
-        estimatedApy:  result.estimatedApy,
-        status:        'open',
+        txHash:          result.txHash,
+        positionId:      result.positionId.toString(),
+        strategyId:      d.strategyId,
+        agentAddress:    d.agentAddress,
+        amount:          d.amount,
+        executedAt:      Math.floor(Date.now() / 1000),
+        estimatedReturn: result.estimatedReturn.toString(),
+        status:          'open',
       },
     });
   } catch (err) {
