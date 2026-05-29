@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { dwalletService } from '../../services/dwallet.service';
+import { strategyService } from '../../services/strategy.service';
+import { getAgentRegistryService } from '../../services/agent-registry.service';
+import { getStellarClient } from '../../integrations/stellar/client';
 import { createChildLogger } from '../../utils/logger';
 
 const log = createChildLogger('agent-routes');
