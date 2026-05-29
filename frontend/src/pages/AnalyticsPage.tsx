@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientText } from "../components/ui";
-import { useIsMobile } from "../hooks";
+import { useIsMobile, useVault } from "../hooks";
+import { useWalletSession } from "../context/WalletSession";
+import { api } from "../lib/api";
 
 // ─── Mock data generation ─────────────────────────────────────────────────────
 
