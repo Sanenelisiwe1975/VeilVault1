@@ -42,13 +42,14 @@ export function createServer(): express.Application {
     message: { success: false, error: 'Too many requests' },
   }));
 
-  // Health check (public)
+  // Health check + auth endpoints (public — no Bearer token required)
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok', version: process.env.npm_package_version ?? '0.1.0', ts: Date.now() });
   });
+  app.use('/api/auth', authRoutes);
 
-  // Authenticated API routes
+  // All other API routes require a valid Bearer token (API key OR session token)
 
   app.use('/api', apiKeyAuth);
   app.use('/api/vault', vaultRoutes);
