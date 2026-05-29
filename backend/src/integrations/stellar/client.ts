@@ -155,3 +155,4 @@ export class StellarClient {
 
 // Singleton
 export const stellarClient = new StellarClient();
+export function getStellarClient(): StellarClient { return stellarClient; }
