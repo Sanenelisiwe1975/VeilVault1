@@ -131,7 +131,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
                   onKeyDown={e => e.key === "Enter" && sk.trim() && handleSecretKey()}
                   style={{ background: colors.surfaceContainerHigh, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 10, padding: "13px 46px 13px 14px", color: colors.onSurface, fontSize: 14, outline: "none", fontFamily: "monospace", width: "100%", boxSizing: "border-box" as const }}
                 />
-                <button type="button" onClick={() => setVisible(v => !v)}
+                <button type="button" aria-label={visible ? "Hide key" : "Show key"} onClick={() => setVisible(v => !v)}
                   style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: colors.outline, padding: 0, display: "flex" }}>
                   <MaterialIcon name={visible ? "visibility_off" : "visibility"} size={18} />
                 </button>
