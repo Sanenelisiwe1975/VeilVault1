@@ -10,13 +10,13 @@
  */
 
 import React, { useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon, GradientButton } from "../ui";
 import { useVault } from "../../hooks";
+import { useWalletSession } from "../../context/WalletSession";
 import { X402_FEE_LAMPORTS, formatX402Fee } from "../../../lib/x402";
-import { VeilVaultClient } from "../../../lib/solana";
 import { generateFheKeyPair, buildStrategyOperation } from "../../../lib/fhe";
+import { api } from "../../lib/api";
 
 const API_BASE = "/api/agent/execute-strategy";
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
