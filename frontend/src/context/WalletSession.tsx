@@ -115,11 +115,12 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       setAddress(addr);
       setSecretKey(null);
       setWalletType("freighter");
+      authenticate(addr, null); // fire-and-forget; Freighter signing for auth not supported yet
       return { address: addr };
     } catch (e) {
       return { error: `Freighter error: ${e instanceof Error ? e.message : String(e)}` };
     }
-  }, []);
+  }, [authenticate]);
 
   // ── Disconnect ─────────────────────────────────────────────────────────────
 
