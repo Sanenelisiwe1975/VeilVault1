@@ -4,7 +4,7 @@ use ark_groth16::{Proof, VerifyingKey};
 use serde_json::{json, Value};
 use std::ops::Neg;
 
-// ─── Field / curve point → bytes ─────────────────────────────────────────────
+// Field / curve point → bytes
 
 /// Fq (381-bit base field) → 48-byte big-endian.
 pub fn fq_to_be48(fq: &Fq) -> [u8; 48] {
@@ -45,7 +45,7 @@ pub fn g2_to_bytes(g2: &G2Affine) -> [u8; 192] {
     out
 }
 
-// ─── JSON builders ────────────────────────────────────────────────────────────
+//  JSON builders 
 
 /// Serialize a Groth16 proof to the Soroban hex format used by `attest_performance`.
 pub fn proof_to_json(proof: &Proof<Bls12_381>) -> Value {
