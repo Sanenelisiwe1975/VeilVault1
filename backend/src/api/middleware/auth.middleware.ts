@@ -21,9 +21,10 @@ declare module 'express-serve-static-core' {
  * Sets req.walletAddress when authenticated via session token.
  */
 export function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
+  const rid = (req as Request & { id?: string }).id;
   const authHeader = req.headers['authorization'];
   if (!authHeader?.startsWith('Bearer ')) {
-    res.status(401).json({ success: false, error: 'Missing Bearer token', requestId: req.id });
+    res.status(401).json({ success: false, error: 'Missing Bearer token', requestId: rid });
     return;
   }
 
