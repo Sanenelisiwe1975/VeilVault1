@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton } from "../components/ui";
 import { useVault } from "../hooks";
@@ -7,14 +7,14 @@ import { X402_FEE_LAMPORTS, formatX402Fee } from "../../lib/x402";
 
 function shortenHash(h: Uint8Array): string {
   const hex = Array.from(h).map(x => x.toString(16).padStart(2, "0")).join("");
-  return `0x${hex.slice(0, 8)}…${hex.slice(-8)}`;
+  return `0x${hex.slice(0, 8)}â€¦${hex.slice(-8)}`;
 }
 
 function shortenSig(sig: string) {
-  return `${sig.slice(0, 6)}…${sig.slice(-6)}`;
+  return `${sig.slice(0, 6)}â€¦${sig.slice(-6)}`;
 }
 
-const EXPLORER = "https://explorer.solana.com";
+const EXPLORER = "https://stellar.expert/explorer/testnet";
 const PROGRAM  = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
 
 const PRESETS = [
@@ -41,14 +41,14 @@ export const StrategyPage: React.FC = () => {
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 900, margin: "0 auto" }}>
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: "inline-flex", alignItems: "center", gap: 8,
           background: `${colors.primary}14`, border: `1px solid ${colors.primary}28`,
           borderRadius: 6, padding: "5px 14px", marginBottom: 16 }}>
           <MaterialIcon name="visibility_off" size={13} style={{ color: colors.primary }} />
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: colors.primary, textTransform: "uppercase" }}>
-            Encrypt REFHE — FHE Active
+            Encrypt REFHE â€” FHE Active
           </span>
         </div>
         <h2 style={{ fontFamily: fontFamily.headline, fontSize: isMobile ? 28 : 36, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", marginBottom: 8 }}>
@@ -56,11 +56,11 @@ export const StrategyPage: React.FC = () => {
         </h2>
         <p style={{ color: colors.onSurfaceVariant, fontSize: 14 }}>
           Parameters are AES-GCM encrypted via Encrypt REFHE before being stored on-chain.
-          Only the SHA-256 hash commitment is public — execution logic stays hidden.
+          Only the SHA-256 hash commitment is public â€” execution logic stays hidden.
         </p>
       </div>
 
-      {/* ── Current state ── */}
+      {/* â”€â”€ Current state â”€â”€ */}
       {vault && (
         <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, padding: 20, marginBottom: 24 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>
@@ -78,7 +78,7 @@ export const StrategyPage: React.FC = () => {
             {vault.strategyParamsSet && (
               <button
                 type="button"
-                onClick={() => window.open(`${EXPLORER}/address/${PROGRAM}?cluster=devnet`, "_blank")}
+                onClick={() => window.open(`${EXPLORER}/contract/${PROGRAM}`, "_blank")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   background: "transparent", border: `1px solid ${colors.outlineVariant}40`,
@@ -97,7 +97,7 @@ export const StrategyPage: React.FC = () => {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
 
-        {/* ── Strategy editor ── */}
+        {/* â”€â”€ Strategy editor â”€â”€ */}
         <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, padding: 20 }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 16 }}>
             Risk Parameters
@@ -157,7 +157,7 @@ export const StrategyPage: React.FC = () => {
           )}
           {txSig && !error && (
             <div style={{ color: "#4ade80", fontSize: 11, background: "#14532d22", borderRadius: 8, padding: "8px 12px", marginBottom: 12, fontFamily: "monospace" }}>
-              ✓ Tx: {shortenSig(txSig)}
+              âœ“ Tx: {shortenSig(txSig)}
             </div>
           )}
 
@@ -166,7 +166,7 @@ export const StrategyPage: React.FC = () => {
             onClick={() => updateStrategyParams(drawdown, rebalance, stopLoss)}
             disabled={loading || !ready}
           >
-            {loading ? "Encrypting & Storing…" : "Encrypt & Store On-Chain"}
+            {loading ? "Encrypting & Storingâ€¦" : "Encrypt & Store On-Chain"}
           </GradientButton>
           {!ready && (
             <p style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 8 }}>
@@ -175,7 +175,7 @@ export const StrategyPage: React.FC = () => {
           )}
         </div>
 
-        {/* ── Execution panel ── */}
+        {/* â”€â”€ Execution panel â”€â”€ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
           {/* Execute strategy */}
@@ -194,7 +194,7 @@ export const StrategyPage: React.FC = () => {
               )}
             </div>
             <p style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>
-              Transfers SOL from vault to protocol under FHE guardrails. Proof is built from the on-chain strategy hash.
+              Transfers XLM from vault to protocol under FHE guardrails. Proof is built from the on-chain strategy hash.
             </p>
 
             {/* x402 fee banner */}
@@ -204,7 +204,7 @@ export const StrategyPage: React.FC = () => {
             }}>
               <span style={{ fontSize: 10, fontWeight: 800, color: "#F7931A", letterSpacing: "0.05em" }}>402</span>
               <span style={{ fontSize: 11, color: "#94a3b8", flex: 1 }}>
-                Payment required · {formatX402Fee(X402_FEE_LAMPORTS)} micropayment bundled atomically with execution
+                Payment required Â· {formatX402Fee(X402_FEE_LAMPORTS)} micropayment bundled atomically with execution
               </span>
               <span style={{ fontSize: 9, fontWeight: 700, color: "#F7931A", background: "#F7931A18",
                 padding: "2px 7px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
@@ -228,7 +228,7 @@ export const StrategyPage: React.FC = () => {
               disabled={loading || !vault?.strategyParamsSet}
               style={{ background: `linear-gradient(135deg, ${colors.tertiaryContainer}, ${colors.tertiary})` }}
             >
-              {loading ? "Executing…" : "Execute Under FHE Guardrails"}
+              {loading ? "Executingâ€¦" : "Execute Under FHE Guardrails"}
             </GradientButton>
           </div>
 
@@ -241,7 +241,7 @@ export const StrategyPage: React.FC = () => {
               { icon: "lock",         text: "Strategy params encrypted via Encrypt REFHE" },
               { icon: "fingerprint",  text: "SHA-256 hash stored as on-chain commitment"  },
               { icon: "shield_lock",  text: "Proof verified against hash before execution" },
-              { icon: "verified",     text: "4 guardrails enforced by Solana program"      },
+              { icon: "verified",     text: "4 guardrails enforced by Soroban contract"      },
             ].map(({ icon, text }) => (
               <div key={text} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <MaterialIcon name={icon} size={14} style={{ color: colors.primary, flexShrink: 0 }} />

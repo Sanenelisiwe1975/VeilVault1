@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon } from "../ui";
 import { useIsMobile } from "../../hooks";
@@ -19,7 +19,7 @@ const INFO_CARDS: InfoCardData[] = [
   {
     icon:    "auto_awesome",
     title:   "Strategy Suggestion",
-    content: "Based on your risk profile, diversifying 15% of Stable Shield into the new 'Solana Sentinel' vault could increase projected monthly yield by 2.4%.",
+    content: "Based on your risk profile, diversifying 15% of Stable Shield into the new 'XLM Yield' vault could increase projected monthly yield by 2.4%.",
   },
   {
     icon:    "hub",

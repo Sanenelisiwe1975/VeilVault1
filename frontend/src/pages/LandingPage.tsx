@@ -28,7 +28,7 @@ const STYLES = `
 // ─── Chain data for each cube face ───────────────────────────────────────────
 
 const CHAIN_FACES = [
-  { rotation: "",              icon: "circle",            label: "Solana",     sublabel: "Native settlement",  color: "#9945FF" },
+  { rotation: "",              icon: "star",              label: "Stellar",    sublabel: "Native settlement",  color: "#7DF9FF" },
   { rotation: "rotateY(180deg)", icon: "currency_bitcoin",label: "Bitcoin",    sublabel: "Ika dWallet",        color: "#F7931A" },
   { rotation: "rotateY(90deg)",  icon: "token",           label: "Ethereum",   sublabel: "Ika dWallet",        color: "#627EEA" },
   { rotation: "rotateY(-90deg)", icon: "real_estate_agent",label: "RWAs",      sublabel: "Ika dWallet",        color: colors.secondary },
@@ -568,7 +568,7 @@ const HowItWorksSection: React.FC<{ onLaunch: () => void }> = ({ onLaunch }) => 
 
 const FEATURES = [
   { icon: "verified_user", color: colors.primary,   title: "Non-Custodial Security",      desc: "Your keys, your crypto. We never hold your assets. All interactions are signed locally on your device." },
-  { icon: "hub",           color: colors.tertiary,  title: "Multi-Chain Support",          desc: "Seamlessly integrated with Ethereum, Solana, Polygon, and Avalanche with more being added monthly." },
+  { icon: "hub",           color: colors.tertiary,  title: "Multi-Chain Support",          desc: "Built on Stellar with bridgeless access to Bitcoin, Ethereum, and real-world assets via Ika dWallet." },
   { icon: "view_in_ar",    color: colors.secondary, title: "Interactive Interface",        desc: "A revolutionary 3D vault experience that makes complex on-chain management feel intuitive and visual." },
   { icon: "fingerprint",   color: colors.primary,   title: "Privacy-First Architecture",  desc: "Leveraging Zero-Knowledge Proofs and MPC to ensure your transaction history remains your business." },
   { icon: "bolt",          color: colors.tertiary,  title: "Fast Transactions",            desc: "Optimised routing and batch processing mean your cross-chain moves happen in seconds, not minutes." },

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon, GradientButton } from "../ui";
@@ -13,7 +13,7 @@ const QUICK_PERCENTAGES = [
 ];
 
 function shortenSig(sig: string): string {
-  return `${sig.slice(0, 6)}…${sig.slice(-6)}`;
+  return `${sig.slice(0, 6)}â€¦${sig.slice(-6)}`;
 }
 
 export const DepositPanel: React.FC = () => {
@@ -47,7 +47,7 @@ export const DepositPanel: React.FC = () => {
     setAmount("0.00");
   };
 
-  // ── Not connected ────────────────────────────────────────────────────────────
+  // â”€â”€ Not connected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!connected) {
     return (
       <div style={{
@@ -65,7 +65,7 @@ export const DepositPanel: React.FC = () => {
     );
   }
 
-  // ── Vault not set up yet ─────────────────────────────────────────────────────
+  // â”€â”€ Vault not set up yet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!vaultExists || !dwalletApproved) {
     return (
       <div style={{
@@ -87,7 +87,7 @@ export const DepositPanel: React.FC = () => {
         </p>
         <p style={{ color: colors.outline, fontSize: 13, marginBottom: 20 }}>
           Creates your on-chain vault, registers an Ika dWallet binding, and
-          sets encrypted strategy params — 5 transactions total.
+          sets encrypted strategy params â€” 5 transactions total.
         </p>
 
         {setupStep && (
@@ -116,13 +116,13 @@ export const DepositPanel: React.FC = () => {
           onClick={setupVault}
           disabled={loading}
         >
-          {loading ? (setupStep ?? "Setting up…") : "Setup Vault + dWallet"}
+          {loading ? (setupStep ?? "Setting upâ€¦") : "Setup Vault + dWallet"}
         </GradientButton>
       </div>
     );
   }
 
-  // ── Vault ready ──────────────────────────────────────────────────────────────
+  // â”€â”€ Vault ready â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   return (
     <div style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: 20 }}>
 
@@ -174,8 +174,8 @@ export const DepositPanel: React.FC = () => {
           </span>
           <span style={{ fontSize: 11, color: "#64748b" }}>
             {activeAction === "Deposit"
-              ? `Wallet: ${availableBalance.toFixed(4)} SOL`
-              : `Available: ${availableBalance.toFixed(4)} SOL`}
+              ? `Wallet: ${availableBalance.toFixed(4)} XLM`
+              : `Available: ${availableBalance.toFixed(4)} XLM`}
           </span>
         </div>
 
@@ -212,12 +212,12 @@ export const DepositPanel: React.FC = () => {
             padding:      "6px 12px",
             borderRadius: 8,
           }}>
-            {/* Solana logo colour */}
+            {/* Stellar accent colour */}
             <div style={{
               width: 16, height: 16, borderRadius: "50%",
-              background: "linear-gradient(135deg,#9945FF,#14F195)",
+              background: "linear-gradient(135deg,#7DF9FF,#4C9BE8)",
             }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>SOL</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>XLM</span>
           </div>
         </div>
       </div>
@@ -256,9 +256,9 @@ export const DepositPanel: React.FC = () => {
       {vault && (
         <div style={{ marginBottom: 16 }}>
           {[
-            { label: "Deposited",    value: `${vault.totalDepositedSol.toFixed(4)} SOL` },
-            { label: "Net Value",    value: `${vault.netValueSol.toFixed(4)} SOL`       },
-            { label: "Yield Earned", value: `${vault.yieldEarnedSol.toFixed(6)} SOL`    },
+            { label: "Deposited",    value: `${vault.totalDepositedSol.toFixed(4)} XLM` },
+            { label: "Net Value",    value: `${vault.netValueSol.toFixed(4)} XLM`       },
+            { label: "Yield Earned", value: `${vault.yieldEarnedSol.toFixed(6)} XLM`    },
           ].map(({ label, value }) => (
             <div key={label} style={{
               display: "flex", justifyContent: "space-between",
@@ -288,7 +288,7 @@ export const DepositPanel: React.FC = () => {
           padding: "8px 12px", marginBottom: 12,
           fontFamily: fontFamily.body,
         }}>
-          ✓ Tx: {shortenSig(txSig)}
+          âœ“ Tx: {shortenSig(txSig)}
         </div>
       )}
 
@@ -300,7 +300,7 @@ export const DepositPanel: React.FC = () => {
         onClick={handleConfirm}
         disabled={loading}
       >
-        {loading ? "Confirming…" : `Confirm ${activeAction}`}
+        {loading ? "Confirmingâ€¦" : `Confirm ${activeAction}`}
       </GradientButton>
 
       <div style={{

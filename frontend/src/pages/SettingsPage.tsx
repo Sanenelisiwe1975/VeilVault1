@@ -1,11 +1,11 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton } from "../components/ui";
 import { useIsMobile } from "../hooks";
 
-const PROGRAM_ID   = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
-const DEVNET_RPC   = "https://api.devnet.solana.com";
-const APP_VERSION  = "1.0.0-devnet";
+const PROGRAM_ID   = "CA5UAF7NF2GJMAJPPZMUYSQIDSAR7V53CYGNHULQS3UCHWKD5LW7KXQW";
+const DEVNET_RPC   = "https://soroban-testnet.stellar.org";
+const APP_VERSION  = "1.0.0-testnet";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -92,9 +92,9 @@ export const SettingsPage: React.FC = () => {
         </p>
       </div>
 
-      {/* ── Network ── */}
+      {/* â”€â”€ Network â”€â”€ */}
       <Section title="Network">
-        <Row icon="wifi" label="Network" value="Solana Devnet" last={false}>
+        <Row icon="wifi" label="Network" value="Stellar Testnet" last={false}>
           <span style={{ fontSize: 9, fontWeight: 700, background: "#4ade8018", color: "#4ade80",
             padding: "3px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
             Active
@@ -138,7 +138,7 @@ export const SettingsPage: React.FC = () => {
         </Row>
       </Section>
 
-      {/* ── Display ── */}
+      {/* â”€â”€ Display â”€â”€ */}
       <Section title="Display">
         <Row icon="visibility_off" label="Hide Balances" value={hideBalances ? "On" : "Off"} last={false}>
           <Toggle on={hideBalances} onToggle={() => setHideBalances(v => !v)} />
@@ -151,7 +151,7 @@ export const SettingsPage: React.FC = () => {
         </Row>
       </Section>
 
-      {/* ── About ── */}
+      {/* â”€â”€ About â”€â”€ */}
       <Section title="About">
         <Row icon="info" label="App Version" value={APP_VERSION} last={false} />
         <Row icon="code" label="Program ID" last={false}>
@@ -161,7 +161,7 @@ export const SettingsPage: React.FC = () => {
           </span>
         </Row>
         {[
-          { icon: "open_in_new",   label: "Solana Explorer",   href: `https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet` },
+          { icon: "open_in_new",   label: "Stellar Expert",   href: `https://stellar.expert/explorer/testnet/contract/${PROGRAM_ID}` },
           { icon: "description",   label: "Ika Integration",   href: "https://docs.ika.xyz" },
           { icon: "science",       label: "Encrypt REFHE",     href: "https://docs.encrypt.xyz" },
           { icon: "sports_esports",label: "Colosseum Hackathon",href: "https://colosseum.org" },
@@ -181,7 +181,7 @@ export const SettingsPage: React.FC = () => {
         ))}
       </Section>
 
-      {/* ── Danger zone ── */}
+      {/* â”€â”€ Danger zone â”€â”€ */}
       <Section title="Data">
         <div style={{ padding: "16px 20px" }}>
           <p style={{ fontSize: 12, color: colors.onSurfaceVariant, marginBottom: 14, lineHeight: 1.6 }}>
@@ -192,7 +192,7 @@ export const SettingsPage: React.FC = () => {
             onClick={handleClearData}
             style={{ background: cleared ? "#14532d" : "#7f1d1d", fontSize: 12 }}
           >
-            {cleared ? "✓ Local data cleared" : "Clear Local Data"}
+            {cleared ? "âœ“ Local data cleared" : "Clear Local Data"}
           </GradientButton>
         </div>
       </Section>

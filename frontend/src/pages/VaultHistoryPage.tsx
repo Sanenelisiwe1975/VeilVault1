@@ -1,11 +1,11 @@
-import React from "react";
+﻿import React from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon } from "../components/ui";
 import { useVault } from "../hooks";
 import { useIsMobile } from "../hooks";
 
 const PROGRAM_ID = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
-const EXPLORER   = "https://explorer.solana.com";
+const EXPLORER   = "https://stellar.expert/explorer/testnet";
 
 interface TxRow {
   type:    string;
@@ -18,14 +18,14 @@ interface TxRow {
 }
 
 const MOCK_HISTORY: TxRow[] = [
-  { type: "Deposit",           icon: "arrow_downward",  color: "#4ade80", amount: "+1.00 SOL",   note: "Vault initialised",    time: "2m ago",   status: "confirmed" },
-  { type: "Strategy Executed", icon: "play_arrow",      color: colors.primary,  amount: "−0.10 SOL",  note: "FHE guardrails passed", time: "5m ago",   status: "confirmed" },
-  { type: "Yield Harvested",   icon: "trending_up",     color: colors.tertiary, amount: "+0.01 SOL",  note: "Protocol returned",    time: "6m ago",   status: "confirmed" },
-  { type: "P&L Encrypted",     icon: "lock",            color: colors.primary,  amount: "—",          note: "REFHE snapshot",       time: "6m ago",   status: "confirmed" },
-  { type: "Bridgeless Deposit",icon: "hub",             color: "#F7931A",       amount: "+0.50 SOL",  note: "Ika dWallet · BTC",    time: "12m ago",  status: "confirmed" },
-  { type: "Strategy Executed", icon: "play_arrow",      color: colors.primary,  amount: "−0.05 SOL",  note: "Drawdown check passed", time: "18m ago", status: "confirmed" },
-  { type: "Deposit",           icon: "arrow_downward",  color: "#4ade80",       amount: "+0.25 SOL",  note: "Added liquidity",      time: "1h ago",   status: "confirmed" },
-  { type: "dWallet Approved",  icon: "verified_user",   color: "#4ade80",       amount: "—",          note: "2PC-MPC ratified",     time: "1h ago",   status: "confirmed" },
+  { type: “Deposit”,           icon: “arrow_downward”, color: “#4ade80”,       amount: “+10.00 XLM”, note: “Vault initialised”,    time: “2m ago”,  status: “confirmed” },
+  { type: “Strategy Executed”, icon: “play_arrow”,     color: colors.primary,  amount: “-1.00 XLM”,  note: “FHE guardrails passed”,time: “5m ago”,  status: “confirmed” },
+  { type: “Yield Harvested”,   icon: “trending_up”,    color: colors.tertiary, amount: “+0.10 XLM”,  note: “Protocol returned”,    time: “6m ago”,  status: “confirmed” },
+  { type: “P&L Encrypted”,     icon: “lock”,           color: colors.primary,  amount: “--”,         note: “FHE snapshot”,         time: “6m ago”,  status: “confirmed” },
+  { type: “Bridgeless Deposit”,icon: “hub”,            color: “#F7931A”,       amount: “+5.00 XLM”,  note: “Ika dWallet - BTC”,    time: “12m ago”, status: “confirmed” },
+  { type: “Strategy Executed”, icon: “play_arrow”,     color: colors.primary,  amount: “-0.50 XLM”,  note: “Drawdown check passed”,time: “18m ago”, status: “confirmed” },
+  { type: “Deposit”,           icon: “arrow_downward”, color: “#4ade80”,       amount: “+2.50 XLM”,  note: “Added liquidity”,      time: “1h ago”,  status: “confirmed” },
+  { type: “dWallet Approved”,  icon: “verified_user”,  color: “#4ade80”,       amount: “--”,         note: “2PC-MPC ratified”,     time: “1h ago”,  status: “confirmed” },
 ];
 
 export const VaultHistoryPage: React.FC = () => {
@@ -35,19 +35,19 @@ export const VaultHistoryPage: React.FC = () => {
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 900, margin: "0 auto" }}>
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
         <div>
           <h2 style={{ fontFamily: fontFamily.headline, fontSize: isMobile ? 24 : 30, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", marginBottom: 6 }}>
             Transaction History
           </h2>
           <p style={{ color: colors.onSurfaceVariant, fontSize: 13 }}>
-            All vault activity — deposits, executions, yield harvests, and FHE snapshots.
+            All vault activity â€” deposits, executions, yield harvests, and FHE snapshots.
           </p>
         </div>
         <button
           type="button"
-          onClick={() => window.open(`${EXPLORER}/address/${PROGRAM_ID}?cluster=devnet`, "_blank", "noopener,noreferrer")}
+          onClick={() => window.open(`${EXPLORER}/contract/${PROGRAM_ID}`, "_blank", "noopener,noreferrer")}
           style={{
             display: "flex", alignItems: "center", gap: 6,
             background: "transparent", border: `1px solid ${colors.outlineVariant}40`,
@@ -61,7 +61,7 @@ export const VaultHistoryPage: React.FC = () => {
         </button>
       </div>
 
-      {/* ── Latest tx from useVault ── */}
+      {/* â”€â”€ Latest tx from useVault â”€â”€ */}
       {txSig && (
         <div style={{ background: "#14532d22", borderRadius: 10, padding: "12px 16px", marginBottom: 20,
           display: "flex", alignItems: "center", gap: 10 }}>
@@ -69,24 +69,24 @@ export const VaultHistoryPage: React.FC = () => {
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: "#4ade80" }}>Latest transaction confirmed</p>
             <p style={{ fontSize: 11, fontFamily: "monospace", color: "#64748b", marginTop: 2 }}>
-              {txSig.slice(0, 24)}…{txSig.slice(-8)}
+              {txSig.slice(0, 24)}â€¦{txSig.slice(-8)}
             </p>
           </div>
           <button type="button"
-            onClick={() => window.open(`${EXPLORER}/tx/${txSig}?cluster=devnet`, "_blank", "noopener,noreferrer")}
+            onClick={() => window.open(`${EXPLORER}/tx/${txSig}`, "_blank", "noopener,noreferrer")}
             style={{ marginLeft: "auto", background: "transparent", border: "none", color: "#4ade80", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700 }}>
             View <MaterialIcon name="open_in_new" size={12} />
           </button>
         </div>
       )}
 
-      {/* ── Stats row ── */}
+      {/* â”€â”€ Stats row â”€â”€ */}
       {vault && (
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 10, marginBottom: 24 }}>
           {[
-            { label: "Deposited",    value: `${vault.totalDepositedSol.toFixed(3)} SOL`, color: "#fff"          },
-            { label: "Net Value",    value: `${vault.netValueSol.toFixed(3)} SOL`,       color: "#fff"          },
-            { label: "Yield Earned", value: `${vault.yieldEarnedSol.toFixed(5)} SOL`,   color: "#4ade80"       },
+            { label: "Deposited",    value: `${vault.totalDepositedSol.toFixed(3)} XLM`, color: "#fff"          },
+            { label: "Net Value",    value: `${vault.netValueSol.toFixed(3)} XLM`,       color: "#fff"          },
+            { label: "Yield Earned", value: `${vault.yieldEarnedSol.toFixed(5)} XLM`,   color: "#4ade80"       },
             { label: "P&L Stored",   value: vault.perfSummaryStored ? "FHE Encrypted" : "None", color: vault.perfSummaryStored ? colors.primary : "#64748b" },
           ].map(({ label, value, color }) => (
             <div key={label} style={{ background: colors.surfaceContainerLow, borderRadius: 8, padding: "12px 14px" }}>
@@ -97,7 +97,7 @@ export const VaultHistoryPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── Transaction list ── */}
+      {/* â”€â”€ Transaction list â”€â”€ */}
       <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, overflow: "hidden" }}>
         {/* Column headers */}
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 12,
@@ -131,7 +131,7 @@ export const VaultHistoryPage: React.FC = () => {
 
             {/* Amount */}
             <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600,
-              color: row.amount.startsWith("+") ? "#4ade80" : row.amount.startsWith("−") ? colors.error : "#64748b" }}>
+              color: row.amount.startsWith("+") ? "#4ade80" : row.amount.startsWith("âˆ’") ? colors.error : "#64748b" }}>
               {row.amount}
             </span>
 
@@ -142,7 +142,7 @@ export const VaultHistoryPage: React.FC = () => {
             <span style={{ fontSize: 9, fontWeight: 700, background: "#4ade8018", color: "#4ade80",
               padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.08em",
               whiteSpace: "nowrap" as const }}>
-              ✓
+              âœ“
             </span>
           </div>
         ))}
@@ -151,7 +151,7 @@ export const VaultHistoryPage: React.FC = () => {
         <div style={{ padding: "12px 16px", background: colors.surfaceContainer,
           display: "flex", alignItems: "center", justifyContent: "center" }}>
           <p style={{ fontSize: 11, color: "#475569" }}>
-            Showing recent activity · Full history on-chain
+            Showing recent activity Â· Full history on-chain
           </p>
         </div>
       </div>

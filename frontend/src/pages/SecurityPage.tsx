@@ -1,14 +1,14 @@
-import React from "react";
+﻿import React from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon } from "../components/ui";
 import { useVault } from "../hooks";
 import { useIsMobile } from "../hooks";
 
 const PROGRAM_ID = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
-const EXPLORER   = "https://explorer.solana.com";
+const EXPLORER   = "https://stellar.expert/explorer/testnet";
 
 const CHAINS = [
-  { icon: "circle",             label: "Solana",   note: "Native settlement layer", color: "#9945FF" },
+  { icon: "circle",             label: "Stellar",   note: "Native settlement layer", color: "#7DF9FF" },
   { icon: "currency_bitcoin",   label: "Bitcoin",  note: "Ika dWallet 2PC-MPC",    color: "#F7931A" },
   { icon: "token",              label: "Ethereum", note: "Ika dWallet 2PC-MPC",    color: "#627EEA" },
   { icon: "real_estate_agent",  label: "RWAs",     note: "Ika dWallet 2PC-MPC",    color: colors.secondary },
@@ -34,10 +34,10 @@ export const SecurityPage: React.FC = () => {
     {
       icon:    "payments",
       label:   "Spending Limit",
-      value:   "2 SOL / tx",
+      value:   "20 XLM / tx",
       status:  "enforced",
       color:   "#4ade80",
-      desc:    "No single strategy execution can transfer more than 2 SOL per transaction.",
+      desc:    "No single strategy execution can transfer more than 20 XLM per transaction.",
     },
     {
       icon:    "timer",
@@ -45,7 +45,7 @@ export const SecurityPage: React.FC = () => {
       value:   "0 s",
       status:  "no lock",
       color:   colors.tertiary,
-      desc:    "Minimum interval between strategy executions. Set to 0 for demo; production should be ≥ 3600s.",
+      desc:    "Minimum interval between strategy executions. Set to 0 for demo; production should be â‰¥ 3600s.",
     },
     {
       icon:    "verified_user",
@@ -60,17 +60,17 @@ export const SecurityPage: React.FC = () => {
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 1000, margin: "0 auto" }}>
 
-      {/* ── Header ── */}
+      {/* â”€â”€ Header â”€â”€ */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontFamily: fontFamily.headline, fontSize: isMobile ? 28 : 36, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", marginBottom: 8 }}>
           Security Overview
         </h2>
         <p style={{ color: colors.onSurfaceVariant, fontSize: 14 }}>
-          On-chain guardrails enforced by the Solana Anchor program. No trusted operator can bypass these.
+          On-chain guardrails enforced by the Soroban contract on Stellar. No trusted operator can bypass these.
         </p>
       </div>
 
-      {/* ── Vault status ── */}
+      {/* â”€â”€ Vault status â”€â”€ */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)",
@@ -99,7 +99,7 @@ export const SecurityPage: React.FC = () => {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 1fr", gap: 20, marginBottom: 20 }}>
 
-        {/* ── Guardrails ── */}
+        {/* â”€â”€ Guardrails â”€â”€ */}
         <div>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 14 }}>
             On-Chain Guardrails
@@ -120,7 +120,7 @@ export const SecurityPage: React.FC = () => {
           </div>
         </div>
 
-        {/* ── Right column ── */}
+        {/* â”€â”€ Right column â”€â”€ */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
           {/* dWallet chains */}
@@ -153,9 +153,9 @@ export const SecurityPage: React.FC = () => {
               wordBreak: "break-all" as const }}>{PROGRAM_ID}</p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {[
-                { label: "View Program",    href: `${EXPLORER}/address/${PROGRAM_ID}?cluster=devnet`      },
-                { label: "View IDL",        href: `${EXPLORER}/address/${PROGRAM_ID}?cluster=devnet#idl`  },
-                { label: "Security Report", href: `${EXPLORER}/address/${PROGRAM_ID}?cluster=devnet#security` },
+                { label: "View Contract",    href: `${EXPLORER}/contract/${PROGRAM_ID}`      },
+                { label: "Stellar Expert",        href: `${EXPLORER}/contract/${PROGRAM_ID}`  },
+                { label: "Security Report", href: `${EXPLORER}/contract/${PROGRAM_ID}` },
               ].map(({ label, href }) => (
                 <button key={label} type="button"
                   onClick={() => window.open(href, "_blank", "noopener,noreferrer")}

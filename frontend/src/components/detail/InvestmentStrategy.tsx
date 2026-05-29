@@ -1,13 +1,13 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon } from "../ui";
 
-// ─── Investment Strategy Card ─────────────────────────────────────────────────
+// â”€â”€â”€ Investment Strategy Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STRATEGY_ROWS = [
   { label: "Risk Profile",       value: "Configurable"          },
   { label: "Rebalance Trigger",  value: "FHE-encrypted rule"    },
-  { label: "Asset Exposure",     value: "SOL + multi-chain Ika" },
+  { label: "Asset Exposure",     value: "XLM + multi-chain Ika" },
   { label: "Max Drawdown",       value: "20% (on-chain guard)"  },
 ];
 
@@ -24,7 +24,7 @@ export const InvestmentStrategy: React.FC = () => (
 
     <p style={{ color: colors.onSurfaceVariant, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
       Strategy parameters are stored as an Encrypt REFHE ciphertext on-chain. Rebalancing
-      decisions are evaluated homomorphically — execution logic stays hidden from searchers
+      decisions are evaluated homomorphically â€” execution logic stays hidden from searchers
       and front-running bots throughout the entire lifecycle.
     </p>
 
@@ -39,7 +39,7 @@ export const InvestmentStrategy: React.FC = () => (
   </div>
 );
 
-// ─── Security Badge Pair ──────────────────────────────────────────────────────
+// â”€â”€â”€ Security Badge Pair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface SecurityBadgeItem {
   icon:       string;
@@ -50,8 +50,8 @@ interface SecurityBadgeItem {
 }
 
 const BADGE_ITEMS: SecurityBadgeItem[] = [
-  { icon: "lock",  title: "Encrypt REFHE",  subtitle: "FHE · Devnet sim",   badge: "FHE",   badgeColor: "#a78bfa" },
-  { icon: "group", title: "Ika dWallet",    subtitle: "2PC-MPC · Devnet",   badge: "MPC",   badgeColor: colors.primary  },
+  { icon: "lock",  title: "Encrypt REFHE",  subtitle: "FHE Â· Devnet sim",   badge: "FHE",   badgeColor: "#a78bfa" },
+  { icon: "group", title: "Ika dWallet",    subtitle: "2PC-MPC Â· Devnet",   badge: "MPC",   badgeColor: colors.primary  },
 ];
 
 const PROGRAM_ID = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
@@ -104,11 +104,11 @@ export const SecurityBadges: React.FC = () => {
         </div>
       ))}
 
-      {/* Audit reports — opens devnet program on Solana Explorer */}
+      {/* Audit reports â€” opens contract on Stellar Expert */}
       <button
         onClick={() =>
           window.open(
-            `https://explorer.solana.com/address/${PROGRAM_ID}?cluster=devnet`,
+            `https://stellar.expert/explorer/testnet/contract/${PROGRAM_ID}`,
             "_blank",
             "noopener,noreferrer"
           )
