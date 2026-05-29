@@ -108,10 +108,11 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       const access = await freighter.requestAccess();
       if (access.error) return { error: access.error };
 
-      const pkResult = await freighter.getPublicKey();
-      if (pkResult.error) return { error: pkResult.error };
+      // Freighter v2: getAddress() (v1 used getPublicKey())
+      const addrResult = await freighter.getAddress();
+      if (addrResult.error) return { error: addrResult.error };
 
-      const addr = pkResult.publicKey;
+      const addr = addrResult.address;
       setAddress(addr);
       setSecretKey(null);
       setWalletType("freighter");
