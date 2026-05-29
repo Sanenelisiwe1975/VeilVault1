@@ -6,6 +6,7 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
 use ark_bls12_381::{Bls12_381, Fr};
+use ark_ff::PrimeField;
 use ark_groth16::{Groth16, ProvingKey, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_snark::SNARK;
@@ -223,7 +224,9 @@ fn cmd_prove(
     let leaf_fr           = to_fr_native(&leaf_arr);
 
     let computed_root = compute_merkle_root(leaf_fr, &path_elements, &path_indices, &consts);
-    let root_fr       = to_fr_native(&root_bytes);
+    // The contract stores canonical Fr bytes (pure fr_add outputs, no byte[0] zeroing),
+    // so interpret the on-chain root as-is via from_be_bytes_mod_order.
+    let root_fr       = Fr::from_be_bytes_mod_order(&root_bytes);
     anyhow::ensure!(
         computed_root == root_fr,
         "computed Merkle root does not match the provided root — check path_elements / path_indices"

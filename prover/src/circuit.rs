@@ -43,6 +43,9 @@ pub fn to_fr_native(bytes: &[u8; 32]) -> Fr {
 /// Compute the Merkle root of a 20-deep MiMC-5 tree given a leaf
 /// and its sibling path. `path_indices[i]` = true means the current
 /// node is the RIGHT child at level i (sibling is on the left).
+///
+/// Path elements are canonical Fr bytes stored by the contract (no byte[0]
+/// zeroing needed — the contract stores pure Fr values from fr_add).
 pub fn compute_merkle_root(
     leaf: Fr,
     path_elements: &[[u8; 32]; TREE_DEPTH],
@@ -51,7 +54,11 @@ pub fn compute_merkle_root(
 ) -> Fr {
     let mut current = leaf;
     for level in 0..TREE_DEPTH {
-        let sibling = to_fr_native(&path_elements[level]);
+        // Use from_be_bytes_mod_order so intermediate hash values (canonical Fr
+        // bytes, < FR_MOD) are interpreted as-is, matching the contract's pure
+        // Fr arithmetic.  Only the leaf uses to_fr_native (byte[0] zeroing) to
+        // match the circuit's to_fr_gadget on the SHA-256 commitment.
+        let sibling = Fr::from_be_bytes_mod_order(&path_elements[level]);
         let (left, right) = if path_indices[level] {
             (sibling, current)  // current is right child
         } else {
@@ -158,7 +165,7 @@ impl ConstraintSynthesizer<Fr> for WithdrawCircuit {
         for level in 0..TREE_DEPTH {
             let sibling_val = self
                 .path_elements
-                .map(|p| to_fr_native(&p[level]))
+                .map(|p| Fr::from_be_bytes_mod_order(&p[level]))
                 .unwrap_or(Fr::from(0u64));
 
             let sibling = FpVar::new_witness(cs.clone(), || Ok(sibling_val))?;
