@@ -1,5 +1,7 @@
 import { useState, useCallback } from "react";
 import { api } from "../lib/api";
+import { sendPayment, sendPaymentFreighter } from "../lib/stellar";
+import { useWalletSession } from "../context/WalletSession";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
