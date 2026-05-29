@@ -76,6 +76,7 @@ const MOCK_HISTORY: Payment[] = [
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePayments() {
+  const { address, secretKey, walletType, signTransaction } = useWalletSession();
   const [payments,   setPayments]   = useState<Payment[]>(() => {
     const stored = loadPayments();
     return stored.length > 0 ? stored : MOCK_HISTORY;
@@ -95,8 +96,33 @@ export function usePayments() {
     setSending(true);
     setError(null);
     try {
-      // Simulate sending (real impl would call Stellar SDK / backend endpoint)
-      await new Promise(r => setTimeout(r, 1200));
+      let txHash: string;
+      const xlmAmount = (Number(params.amount) / 1e7).toFixed(7);
+
+      if (walletType === "freighter" && address) {
+        // Freighter: build tx, sign via extension, submit
+        txHash = await sendPaymentFreighter({
+          from:          address,
+          to:            params.recipient,
+          amount:        xlmAmount,
+          asset:         params.asset as "XLM" | "USDC",
+          memo:          params.memo,
+          signFreighter: signTransaction,
+        });
+      } else if (walletType === "secret-key" && (params.senderSecret || secretKey)) {
+        // Secret key: sign and submit directly
+        txHash = await sendPayment({
+          fromSecret: params.senderSecret || secretKey!,
+          to:         params.recipient,
+          amount:     xlmAmount,
+          asset:      params.asset as "XLM" | "USDC",
+          memo:       params.memo,
+        });
+      } else {
+        // No wallet connected — demo simulation
+        await new Promise(r => setTimeout(r, 1000));
+        txHash = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
 
       const payment: Payment = {
         id:         crypto.randomUUID(),
@@ -105,7 +131,7 @@ export function usePayments() {
         amount:     params.amount,
         asset:      params.asset,
         memo:       params.memo,
-        txHash:     Array.from(crypto.getRandomValues(new Uint8Array(32))).map(b => b.toString(16).padStart(2,"0")).join(""),
+        txHash,
         status:     "confirmed",
         createdAt:  Math.floor(Date.now() / 1000),
         private:    params.private ?? false,
