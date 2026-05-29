@@ -261,20 +261,47 @@ function Metric({ icon, label, value, sub, color = colors.primary, trend }: {
 
 type TimeRange = "1M" | "3M" | "6M" | "1Y";
 
+interface HistoryPoint { totalAssets: string; sharePrice: string }
+
 export const AnalyticsPage: React.FC = () => {
-  const isMobile = useIsMobile();
+  const isMobile    = useIsMobile();
+  const { address } = useWalletSession();
+  const { vault }   = useVault();
+
   const [range,    setRange]    = useState<TimeRange>("1Y");
-  const [hidden,   setHidden]   = useState(false);   // privacy — hide values
+  const [hidden,   setHidden]   = useState(false);
+  const [history,  setHistory]  = useState<HistoryPoint[]>([]);
 
-  // Slice data by range
-  const n = { "1M": 4, "3M": 6, "6M": 9, "1Y": 12 }[range];
-  const portfolio = useMemo(() => PORTFOLIO_SERIES.slice(-n), [n]);
-  const yield_s   = useMemo(() => YIELD_SERIES.slice(-n),     [n]);
-  const stokvel_s = useMemo(() => STOKVEL_SERIES.slice(-n),   [n]);
+  // Fetch real historical data from backend
+  const DAYS_MAP: Record<TimeRange, number> = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 };
+  const fetchHistory = useCallback(async () => {
+    try {
+      const qs  = address ? `?address=${address}&days=${DAYS_MAP[range]}` : `?days=${DAYS_MAP[range]}`;
+      const res = await api.get<{ success: boolean; data: { series: HistoryPoint[] } }>(`/vault/history${qs}`);
+      setHistory(res.data.series);
+    } catch {
+      // Fall back to generated series if backend unreachable
+    }
+  }, [address, range]);
 
-  const totalPortfolio = portfolio[portfolio.length - 1];
-  const totalYield     = yield_s.reduce((a, b) => a + b, 0);
-  const portfolioPct   = ((totalPortfolio - portfolio[0]) / Math.max(portfolio[0], 0.01) * 100);
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
+
+  // Build chart series from history (or generated fallback)
+  const n = { "1M": 30, "3M": 90, "6M": 180, "1Y": 365 }[range];
+  const portfolio = useMemo(() => {
+    if (history.length > 0) {
+      const pts = history.slice(-Math.min(12, history.length));
+      return pts.map(p => Number(p.totalAssets) / 1e7);
+    }
+    return PORTFOLIO_SERIES.slice(-Math.min(12, n));
+  }, [history, n]);
+
+  const yield_s   = useMemo(() => YIELD_SERIES.slice(-Math.min(12, n)),   [n]);
+  const stokvel_s = useMemo(() => STOKVEL_SERIES.slice(-Math.min(12, n)), [n]);
+
+  const totalPortfolio = portfolio.length > 0 ? portfolio[portfolio.length - 1] : 0;
+  const totalYield     = vault?.yieldEarnedSol ?? yield_s.reduce((a, b) => a + b, 0);
+  const portfolioPct   = portfolio.length > 1 ? ((totalPortfolio - portfolio[0]) / Math.max(portfolio[0], 0.01) * 100) : 0;
   const yieldPct       = totalPortfolio > 0 ? (totalYield / totalPortfolio * 100) : 0;
   const privacyScore   = 72;
 
