@@ -1,7 +1,7 @@
 import React from "react";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon } from "../components/ui";
-import { useIsMobile } from "../hooks";
+import { useIsMobile, useVault } from "../hooks";
 import {
   TvlCard,
   NetWorthCard,
@@ -13,6 +13,7 @@ import {
 
 export const PortfolioPage: React.FC = () => {
   const isMobile = useIsMobile();
+  const { vault, vaultExists } = useVault();
   return (
   <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 1200, margin: "0 auto" }}>
 
@@ -59,8 +60,8 @@ export const PortfolioPage: React.FC = () => {
 
     {/* TVL + Net Worth */}
     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 320px", gap: 20, marginBottom: 20 }}>
-      <TvlCard />
-      <NetWorthCard />
+      <TvlCard    totalAssets={vaultExists && vault ? String(Math.round(vault.netValueSol * 1e7)) : undefined} />
+      <NetWorthCard netValueXlm={vaultExists && vault ? vault.netValueSol : undefined} yieldXlm={vaultExists && vault ? vault.yieldEarnedSol : undefined} />
     </div>
 
     {/* Security + Yield */}

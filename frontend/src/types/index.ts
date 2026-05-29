@@ -1,6 +1,6 @@
 
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
-export type NavItem = "Portfolio" | "Vaults" | "Strategy" | "Security" | "Settings";
+export type NavItem = "Portfolio" | "Vaults" | "Strategy" | "Security" | "Settings" | "Stokvel" | "Identity" | "Pool" | "Payments" | "Assets" | "Analytics";
 export type ActiveTab = "Overview" | "Yields" | "History";
 export type ViewMode = "Grid" | "List";
 export type SortOption = "Highest APY" | "Lowest APY" | "Highest TVL" | "Newest";

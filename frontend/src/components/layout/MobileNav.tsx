@@ -4,10 +4,11 @@ import { MaterialIcon } from "../ui";
 import type { SidebarProps, NavItem } from "../../types";
 
 const NAV_LINKS: { icon: string; label: NavItem }[] = [
-  { icon: "account_balance_wallet", label: "Vaults"    },
   { icon: "dashboard",              label: "Portfolio" },
-  { icon: "explore",                label: "Strategy"  },
-  { icon: "verified_user",          label: "Security"  },
+  { icon: "account_balance_wallet", label: "Vaults"    },
+  { icon: "groups",                 label: "Stokvel"   },
+  { icon: "badge",                  label: "Identity"  },
+  { icon: "privacy_tip",            label: "Pool"      },
   { icon: "settings",               label: "Settings"  },
 ];
 

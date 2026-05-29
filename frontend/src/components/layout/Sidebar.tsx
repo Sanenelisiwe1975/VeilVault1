@@ -10,11 +10,17 @@ interface NavLink {
 }
 
 const NAV_LINKS: NavLink[] = [
-  { icon: "dashboard",             label: "Portfolio" },
-  { icon: "account_balance_wallet",label: "Vaults"    },
-  { icon: "explore",               label: "Strategy"  },
-  { icon: "verified_user",         label: "Security"  },
-  { icon: "settings",              label: "Settings"  },
+  { icon: "dashboard",              label: "Portfolio" },
+  { icon: "account_balance_wallet", label: "Vaults"    },
+  { icon: "groups",                 label: "Stokvel"   },
+  { icon: "badge",                  label: "Identity"  },
+  { icon: "privacy_tip",            label: "Pool"      },
+  { icon: "send",                   label: "Payments"  },
+  { icon: "storefront",             label: "Assets"    },
+  { icon: "bar_chart",              label: "Analytics" },
+  { icon: "explore",                label: "Strategy"  },
+  { icon: "verified_user",          label: "Security"  },
+  { icon: "settings",               label: "Settings"  },
 ];
 
 const UTILITY_LINKS = [

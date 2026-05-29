@@ -135,6 +135,10 @@ export const globalStyles = `
     50%       { opacity: 0.4; }
   }
 
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+
   @keyframes blurIn {
     from { opacity: 0; filter: blur(6px); transform: translateY(12px); }
     to   { opacity: 1; filter: blur(0);   transform: translateY(0);    }
