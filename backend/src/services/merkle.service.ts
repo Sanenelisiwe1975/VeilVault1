@@ -88,6 +88,10 @@ export interface MerklePath {
   root:         string;     // 64-char hex of the computed root
 }
 
+export function computeMerklePathFromLeaves(allLeaves: Buffer[], targetIndex: number): MerklePath {
+  return buildMerklePath(allLeaves, targetIndex);
+}
+
 function buildMerklePath(allLeaves: Buffer[], targetIndex: number): MerklePath {
   if (targetIndex >= allLeaves.length) {
     throw new Error(`leaf ${targetIndex} not yet deposited (tree has ${allLeaves.length} leaves)`);

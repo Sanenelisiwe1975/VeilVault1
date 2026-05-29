@@ -282,19 +282,36 @@ export class PrivacyPoolService {
   // ── Utilities ─────────────────────────────────────────────────────────────
 
   private async waitAndExtractLeafIndex(txHash: string): Promise<number> {
-    let attempts = 0;
-    while (attempts < 20) {
+    for (let i = 0; i < 20; i++) {
       await new Promise(r => setTimeout(r, 2000));
-      const status = await this.server.getTransaction(txHash);
-      if (status.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
-        const val = scValToNative(status.returnValue!);
-        return Number(val);
+      try {
+        const status = await this.server.getTransaction(txHash);
+        if (status.status === SorobanRpc.Api.GetTransactionStatus.SUCCESS) {
+          try {
+            return Number(scValToNative(status.returnValue!));
+          } catch {
+            // SDK XDR parser can't handle newer protocol result format —
+            // derive leaf index from tree state (nextIndex was just incremented)
+            const tree = await this.getTreeState();
+            log.warn({ txHash }, 'XDR parse fallback: derived leaf index from tree state');
+            return tree.nextIndex - 1;
+          }
+        }
+        if (status.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
+          throw new Error(`Deposit transaction failed: ${txHash}`);
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Bad union switch') || msg.includes('parse')) {
+          // getTransaction itself failed to parse — transaction landed, derive from tree
+          await new Promise(r => setTimeout(r, 3000));
+          const tree = await this.getTreeState();
+          log.warn({ txHash }, 'XDR parse fallback: derived leaf index from tree state');
+          return tree.nextIndex - 1;
+        }
+        throw err;
       }
-      if (status.status === SorobanRpc.Api.GetTransactionStatus.FAILED) {
-        throw new Error(`Deposit transaction failed: ${txHash}`);
-      }
-      attempts++;
     }
-    throw new Error(`Transaction not confirmed after ${attempts} attempts`);
+    throw new Error(`Transaction not confirmed after 20 attempts: ${txHash}`);
   }
 }

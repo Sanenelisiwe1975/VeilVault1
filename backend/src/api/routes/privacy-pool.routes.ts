@@ -99,6 +99,37 @@ router.get('/root/:hash/known', async (req: Request, res: Response, next: NextFu
 });
 
 /**
+ * POST /api/privacy-pool/merkle-path/compute
+ * Compute a Merkle path from caller-supplied leaf values (no contract fetch).
+ * Use when the deployed contract pre-dates get_leaves support.
+ *
+ * Body:
+ *   leaves:      string[]  — all committed leaf values as 64-char hex, index 0 first
+ *   targetIndex: number    — which leaf to generate the path for
+ */
+router.post('/merkle-path/compute', async (req: Request, res: Response, next: NextFunction) => {
+  const body = validate(
+    z.object({
+      leaves:      z.array(z.string().regex(/^[0-9a-fA-F]{64}$/)).min(1),
+      targetIndex: z.number().int().min(0),
+    }),
+    req.body,
+    res,
+  );
+  if (!body) return;
+  try {
+    const { computeMerklePathFromLeaves } = await import('../../services/merkle.service');
+    const path = computeMerklePathFromLeaves(
+      body.leaves.map(h => Buffer.from(h, 'hex')),
+      body.targetIndex,
+    );
+    res.json({ success: true, data: path });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * GET /api/privacy-pool/merkle-path/:leafIndex
  * Returns the 20-level MiMC-5 Merkle sibling path for a deposited leaf.
  * Clients use this to generate a withdrawal proof with the Rust prover.
