@@ -129,6 +129,7 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     setSecretKey(null);
     setWalletType(null);
     setAuthToken(null);
+    setSessionToken(null);  // clear the global api.ts token
   }, []);
 
   // ── Sign transaction ───────────────────────────────────────────────────────
