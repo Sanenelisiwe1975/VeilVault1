@@ -52,9 +52,9 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
     }
 
     log.warn({ ip: req.ip }, 'Invalid token attempt');
-    res.status(403).json({ success: false, error: 'Invalid or expired token', requestId: req.id });
+    res.status(403).json({ success: false, error: 'Invalid or expired token', requestId: rid });
   }).catch(() => {
-    res.status(403).json({ success: false, error: 'Invalid API key', requestId: req.id });
+    res.status(403).json({ success: false, error: 'Invalid API key', requestId: rid });
   });
 }
 
