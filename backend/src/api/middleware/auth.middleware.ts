@@ -7,12 +7,19 @@ const log = createChildLogger('auth-middleware');
 
 declare module 'express-serve-static-core' {
   interface Request {
-    agentId?: string;
-    isAdmin?: boolean;
+    agentId?:       string;
+    isAdmin?:       boolean;
+    walletAddress?: string;   // set when authenticated via session token
   }
 }
 
-/** Validate a Bearer API key against the configured hash. */
+/**
+ * Validate a Bearer token — accepts two forms:
+ *   1. Static API key (hash matches API_KEY_HASH in .env)
+ *   2. Session token issued by POST /api/auth/token
+ *
+ * Sets req.walletAddress when authenticated via session token.
+ */
 export function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers['authorization'];
   if (!authHeader?.startsWith('Bearer ')) {
@@ -20,20 +27,34 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
     return;
   }
 
-  const token = authHeader.slice(7);
+  const token     = authHeader.slice(7);
   const tokenHash = sha256Hex(token);
 
-  if (config.API_KEY_HASH && tokenHash !== config.API_KEY_HASH) {
-    log.warn({ ip: req.ip }, 'Invalid API key attempt');
-    res.status(403).json({ success: false, error: 'Invalid API key', requestId: req.id });
+  // ── 1. Static API key ────────────────────────────────────────────────────────
+  if (!config.API_KEY_HASH || tokenHash === config.API_KEY_HASH) {
+    req.agentId = req.headers['x-agent-id'] as string | undefined;
+    req.isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+    next();
     return;
   }
 
-  // Extract agent ID from custom header
-  req.agentId = req.headers['x-agent-id'] as string | undefined;
-  req.isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+  // ── 2. Session token from /api/auth/token ─────────────────────────────────
+  // Dynamic import avoids a circular-dependency with auth.routes.ts at startup.
+  import('../routes/auth.routes').then(({ validateSessionToken }) => {
+    const session = validateSessionToken(token);
+    if (session) {
+      req.walletAddress = session.address;
+      req.agentId       = session.address;
+      req.isAdmin       = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+      next();
+      return;
+    }
 
-  next();
+    log.warn({ ip: req.ip }, 'Invalid token attempt');
+    res.status(403).json({ success: false, error: 'Invalid or expired token', requestId: req.id });
+  }).catch(() => {
+    res.status(403).json({ success: false, error: 'Invalid API key', requestId: req.id });
+  });
 }
 
 /** Attach a request ID for tracing. */
