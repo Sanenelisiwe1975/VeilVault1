@@ -23,7 +23,11 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
 
-RUN addgroup -S veiluser && adduser -S veiluser -G veiluser
+# Create directories the app needs and set ownership before dropping to non-root
+RUN addgroup -S veiluser && adduser -S veiluser -G veiluser \
+    && mkdir -p /app/fhe-keys /app/logs \
+    && chown -R veiluser:veiluser /app
+
 USER veiluser
 
 EXPOSE 3000
