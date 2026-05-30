@@ -45,3 +45,5 @@ logs/
 # Test artifacts
 coverage/
 .jest-cache/
+
+.vercel

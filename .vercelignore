@@ -1,0 +1,37 @@
+# Exclude everything except the frontend source and config
+# Vercel only needs to build frontend/
+
+# Node dependencies (installed during build on Vercel servers)
+node_modules
+backend/node_modules
+frontend/node_modules
+sdk/node_modules
+
+# Rust build artifacts (very large, not needed for frontend)
+contracts/target
+prover/target
+
+# Backend source (not deployed to Vercel)
+backend/src
+backend/dist
+backend/fhe-keys
+backend/logs
+
+# Rust/Soroban contracts source
+contracts
+
+# Prover source
+prover/src
+prover/prover-keys
+
+# SDK source
+sdk/src
+sdk/dist
+
+# Misc
+.env
+*.env
+*.log
+docker-compose.yml
+scripts
+docs

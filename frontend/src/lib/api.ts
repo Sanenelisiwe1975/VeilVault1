@@ -1,22 +1,27 @@
 /**
  * VeilVault1 API client.
  *
+ * Backend URL resolution:
+ *   - Development: Vite proxies /api/* → localhost:3000 (vite.config.ts)
+ *   - Production (Vercel): uses VITE_API_URL env var
+ *     e.g. VITE_API_URL=https://your-backend.up.railway.app
+ *
  * Bearer token priority (highest to lowest):
- *   1. Session token from POST /api/auth/token  (stored in WalletSession)
+ *   1. Session token from POST /api/auth/token
  *   2. User-configured API key from localStorage
  *   3. Default dev key
  */
 
 const DEFAULT_KEY = "veilpool-dev-key";
 
+// In production VITE_API_URL points to the deployed backend.
+// In dev it's empty and the Vite proxy forwards /api/* to localhost:3000.
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+
 function getToken(): string {
-  // The WalletSession context stores the session token in the module-level
-  // variable below.  api.ts is intentionally kept free of React hooks so it
-  // can be called outside components.
   return sessionToken ?? localStorage.getItem("vv_api_key") ?? DEFAULT_KEY;
 }
 
-// Set by WalletSession after a successful /api/auth/token call.
 let sessionToken: string | null = null;
 export function setSessionToken(token: string | null) { sessionToken = token; }
 
@@ -24,7 +29,7 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     ...options,
     headers: {
       "Content-Type":  "application/json",
