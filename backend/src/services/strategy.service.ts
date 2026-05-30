@@ -86,7 +86,7 @@ export class StrategyService {
     }
 
     // Open position on-chain
-    const vaultService = getVaultService(request.vaultContractId);
+    const vaultService = getVaultService();
     const { txHash, positionId } = await vaultService.openPosition({
       agent: request.agentAddress,
       protocol: strategy.protocol,
@@ -174,13 +174,8 @@ function fheService_encryptedToBuffer(params: import('../types').EncryptedStrate
 }
 
 // Vault service factory (supports multiple vault contract IDs)
-function getVaultService(contractId: string) {
+function getVaultServiceForContract(contractId: string) {
   const { VaultService } = require('./vault.service');
-  const { stellarClient } = require('../integrations/stellar/client');
-  const { config } = require('../config');
-  const { Keypair } = require('@stellar/stellar-sdk');
-  const { VaultContractClient } = require('../integrations/stellar/contracts');
-  const adminKeypair = Keypair.fromSecret(config.ADMIN_SECRET_KEY);
   const vs = new VaultService(contractId);
   return vs;
 }

@@ -50,15 +50,35 @@ export class StellarClient {
     return this.rpc.simulateTransaction(tx);
   }
 
-  /** Build, simulate, sign, and submit a Soroban transaction. */
-  async invokeContract(params: {
-    contractId: string;
-    method: string;
-    args: xdr.ScVal[];
-    signerSecretKey: string;
-    fee?: string;
-  }): Promise<{ txHash: string; result: xdr.ScVal | null }> {
-    const { contractId, method, args, signerSecretKey, fee = BASE_FEE } = params;
+  /** Build, simulate, sign, and submit a Soroban transaction.
+   *
+   * Accepts both the object form:
+   *   invokeContract({ contractId, method, args, signerSecretKey })
+   * and the legacy positional form used by service files:
+   *   invokeContract(contractId, method, args, signerSecretKey)
+   */
+  async invokeContract(
+    paramsOrContractId:
+      | { contractId: string; method: string; args: xdr.ScVal[]; signerSecretKey: string; fee?: string }
+      | string,
+    legacyMethod?: string,
+    legacyArgs?: xdr.ScVal[],
+    legacySignerSecretKey?: string,
+  ): Promise<{ txHash: string; result: xdr.ScVal | null }> {
+    let contractId: string, method: string, args: xdr.ScVal[], signerSecretKey: string, fee: string;
+
+    if (typeof paramsOrContractId === 'string') {
+      // Legacy positional call: invokeContract(contractId, method, args, signer)
+      contractId      = paramsOrContractId;
+      method          = legacyMethod!;
+      args            = legacyArgs ?? [];
+      signerSecretKey = legacySignerSecretKey!;
+      fee             = BASE_FEE;
+    } else {
+      // Object form
+      ({ contractId, method, args, signerSecretKey } = paramsOrContractId);
+      fee = paramsOrContractId.fee ?? BASE_FEE;
+    }
     const signer = Keypair.fromSecret(signerSecretKey);
     const account = await this.loadAccount(signer.publicKey());
 
