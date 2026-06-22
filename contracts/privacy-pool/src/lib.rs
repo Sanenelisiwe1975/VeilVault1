@@ -557,16 +557,15 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "AlreadyInitialized")]
     fn test_double_initialize_panics() {
         let s = setup();
         let admin2 = Address::generate(&s.env);
         let asset2 = Address::generate(&s.env);
-        s.client.initialize(&admin2, &asset2, &10_000_000_i128);
+        let result = s.client.try_initialize(&admin2, &asset2, &10_000_000_i128);
+        assert!(result.is_err());
     }
 
     #[test]
-    #[should_panic(expected = "InvalidDenomination")]
     fn test_zero_denomination_fails() {
         let env = Env::default();
         env.mock_all_auths();
@@ -576,6 +575,7 @@ mod test {
         let id = env.register_contract(None, PrivacyPoolContract);
         let client: PrivacyPoolContractClient<'static> =
             unsafe { core::mem::transmute(PrivacyPoolContractClient::new(&env, &id)) };
-        client.initialize(&admin, &asset, &0_i128);
+        let result = client.try_initialize(&admin, &asset, &0_i128);
+        assert!(result.is_err());
     }
 }

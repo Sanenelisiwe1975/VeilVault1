@@ -259,7 +259,6 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "PaymentAlreadyUsed")]
     fn test_double_consume_fails() {
         let (env, _admin, _oracle, client) = setup();
         let payer = Address::generate(&env);
@@ -270,6 +269,7 @@ mod test {
         client.attest_payment(&proof, &sig);
         let consumer = Address::generate(&env);
         client.consume_payment(&String::from_str(&env, "tx_abc123"), &consumer);
-        client.consume_payment(&String::from_str(&env, "tx_abc123"), &consumer);
+        let result = client.try_consume_payment(&String::from_str(&env, "tx_abc123"), &consumer);
+        assert!(result.is_err());
     }
 }

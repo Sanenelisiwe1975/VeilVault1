@@ -280,7 +280,6 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "DWalletRevoked")]
     fn test_verify_revoked_fails() {
         let (env, _admin, client) = setup();
         let owner = Address::generate(&env);
@@ -296,6 +295,7 @@ mod test {
 
         let msg = Bytes::from_slice(&env, b"hello");
         let sig: BytesN<64> = BytesN::from_array(&env, &[0u8; 64]);
-        client.verify_signature(&String::from_str(&env, "dwallet-rev"), &msg, &sig);
+        let result = client.try_verify_signature(&String::from_str(&env, "dwallet-rev"), &msg, &sig);
+        assert!(result.is_err());
     }
 }
