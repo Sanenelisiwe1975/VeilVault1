@@ -1,129 +1,124 @@
 /**
- * Stellar wallet-based authentication.
+ * SEP-10 Stellar Web Authentication.
+ * https://stellar.org/protocol/sep-10
  *
  * Flow:
- *   1. POST /api/auth/challenge  →  { challenge, expiresAt }
- *   2. Client signs the challenge string with their Stellar keypair
- *   3. POST /api/auth/token      →  { token, address, expiresAt }
- *   4. Client passes token as "Authorization: Bearer <token>" on all requests
+ *   1. GET  /api/auth?account=G...        -> { transaction, network_passphrase }
+ *   2. Client signs the returned challenge transaction with their Stellar keypair
+ *      (or Freighter / Lobstr) WITHOUT submitting it to the network.
+ *   3. POST /api/auth { transaction: <signed envelope xdr> } -> { token }
+ *   4. Client passes token as "Authorization: Bearer <token>" on all requests.
  *
- * For Freighter users who cannot sign arbitrary messages, a transaction-based
- * variant is also accepted: sign a zero-fee Stellar transaction whose memo
- * contains the challenge hash.
+ * Any standard SEP-10 wallet can authenticate against this endpoint, not just
+ * the VeilVault1 frontend, since the request/response shapes follow the spec.
  */
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { Keypair } from '@stellar/stellar-sdk';
-import crypto from 'crypto';
+import { Keypair, WebAuth } from '@stellar/stellar-sdk';
+import jwt from 'jsonwebtoken';
+import { config, STELLAR_NETWORKS } from '../../config';
 import { createChildLogger } from '../../utils/logger';
 
 const log = createChildLogger('auth');
 const router = Router();
 
-// ─── In-memory session store ──────────────────────────────────────────────────
-// In production: replace with Redis or a DB-backed store.
+const networkPassphrase = STELLAR_NETWORKS[config.STELLAR_NETWORK].passphrase;
+const signingSecret = config.SEP10_SIGNING_SECRET_KEY ?? config.ADMIN_SECRET_KEY;
+const serverKeypair = Keypair.fromSecret(signingSecret);
 
-interface Challenge {
-  challenge:  string;
-  address:    string | null;  // null = any address can claim it
-  expiresAt:  number;
+const CHALLENGE_TIMEOUT_SECS = 300; // 5 min to complete the sign
+const SESSION_TTL_SECS = 86400; // 24 h session
+
+log.info({ signingKey: serverKeypair.publicKey() }, 'SEP-10 server signing key (publish in stellar.toml as SIGNING_KEY)');
+
+// ─── JWT session helpers ────────────────────────────────────────────────────
+
+function issueToken(address: string): string {
+  return jwt.sign({ sub: address }, config.JWT_SECRET, { expiresIn: SESSION_TTL_SECS });
 }
 
-interface Session {
-  address:    string;
-  token:      string;
-  expiresAt:  number;
-}
-
-const challenges = new Map<string, Challenge>();
-const sessions   = new Map<string, Session>();
-
-const CHALLENGE_TTL_SECS = 300;   // 5 min to complete the sign
-const SESSION_TTL_SECS   = 86400; // 24 h session
-
-function purgeExpired() {
-  const now = Math.floor(Date.now() / 1000);
-  for (const [k, v] of challenges) if (v.expiresAt < now) challenges.delete(k);
-  for (const [k, v] of sessions)   if (v.expiresAt < now) sessions.delete(k);
-}
-
-// ─── Exported session validator (used by auth middleware) ─────────────────────
-
+/** Exported session validator (used by the apiKeyAuth middleware). */
 export function validateSessionToken(token: string): { address: string } | null {
-  purgeExpired();
-  const session = sessions.get(token);
-  if (!session || session.expiresAt < Math.floor(Date.now() / 1000)) return null;
-  return { address: session.address };
+  try {
+    const payload = jwt.verify(token, config.JWT_SECRET) as { sub?: string };
+    if (!payload.sub) return null;
+    return { address: payload.sub };
+  } catch {
+    return null;
+  }
 }
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
+// ─── Routes ─────────────────────────────────────────────────────────────────
 
-/** POST /api/auth/challenge — get a nonce to sign. */
-router.post('/challenge', (req: Request, res: Response) => {
-  const address    = (req.body as { address?: string }).address ?? null;
-  const challenge  = crypto.randomBytes(32).toString('hex');
-  const expiresAt  = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SECS;
-
-  challenges.set(challenge, { challenge, address, expiresAt });
-  log.debug({ address }, 'challenge issued');
-
-  res.json({ success: true, data: { challenge, expiresAt } });
-});
-
-/** POST /api/auth/token — exchange a signed challenge for a session token. */
-router.post('/token', (req: Request, res: Response) => {
-  const body = z.object({
-    address:   z.string().min(56).max(56),
-    challenge: z.string().length(64),
-    signature: z.string().min(1),
-  }).safeParse(req.body);
-
-  if (!body.success) {
-    res.status(400).json({ success: false, error: body.error.flatten() });
+/** GET /api/auth — request a SEP-10 challenge transaction. */
+router.get('/', (req: Request, res: Response) => {
+  const account = (req.query.account as string | undefined)?.trim();
+  if (!account || (!account.startsWith('G') && !account.startsWith('M')) || account.length !== 56) {
+    res.status(400).json({ error: 'Missing or invalid "account" query parameter' });
     return;
   }
+  const clientDomain = (req.query.client_domain as string | undefined) || null;
 
-  const { address, challenge, signature } = body.data;
-  purgeExpired();
-
-  const stored = challenges.get(challenge);
-  if (!stored) {
-    res.status(401).json({ success: false, error: 'Challenge not found or expired' });
-    return;
-  }
-  if (stored.address && stored.address !== address) {
-    res.status(401).json({ success: false, error: 'Challenge was issued for a different address' });
-    return;
-  }
-
-  // Verify Stellar Ed25519 signature over the UTF-8 challenge string
   try {
-    const keypair = Keypair.fromPublicKey(address);
-    const valid   = keypair.verify(
-      Buffer.from(challenge, 'utf8'),
-      Buffer.from(signature, 'base64'),
+    const transaction = WebAuth.buildChallengeTx(
+      serverKeypair,
+      account,
+      config.HOME_DOMAIN,
+      CHALLENGE_TIMEOUT_SECS,
+      networkPassphrase,
+      config.WEB_AUTH_DOMAIN,
+      null,
+      clientDomain,
     );
-    if (!valid) throw new Error('invalid');
-  } catch {
-    res.status(401).json({ success: false, error: 'Signature verification failed' });
+    log.debug({ account }, 'SEP-10 challenge issued');
+    res.json({ transaction, network_passphrase: networkPassphrase });
+  } catch (err) {
+    log.error({ err: (err as Error).message }, 'Failed to build SEP-10 challenge');
+    res.status(500).json({ error: 'Failed to build challenge transaction' });
+  }
+});
+
+/** POST /api/auth — exchange a signed SEP-10 challenge for a session token (JWT). */
+router.post('/', (req: Request, res: Response) => {
+  const body = z.object({ transaction: z.string().min(1) }).safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: 'Missing "transaction" field' });
     return;
   }
 
-  // Issue session token
-  challenges.delete(challenge);
-  const token     = crypto.randomBytes(32).toString('hex');
-  const expiresAt = Math.floor(Date.now() / 1000) + SESSION_TTL_SECS;
+  try {
+    const { clientAccountID } = WebAuth.readChallengeTx(
+      body.data.transaction,
+      serverKeypair.publicKey(),
+      networkPassphrase,
+      [config.HOME_DOMAIN],
+      config.WEB_AUTH_DOMAIN,
+    );
 
-  sessions.set(token, { address, token, expiresAt });
-  log.info({ address }, 'session issued');
+    // Single-signer accounts: the only valid client signer is the account itself.
+    // (Multisig accounts would need verifyChallengeTxThreshold with Horizon signer weights.)
+    WebAuth.verifyChallengeTxSigners(
+      body.data.transaction,
+      serverKeypair.publicKey(),
+      networkPassphrase,
+      [clientAccountID],
+      [config.HOME_DOMAIN],
+      config.WEB_AUTH_DOMAIN,
+    );
 
-  res.json({ success: true, data: { token, address, expiresAt } });
+    const token = issueToken(clientAccountID);
+    log.info({ address: clientAccountID }, 'SEP-10 session issued');
+    res.json({ token });
+  } catch (err) {
+    log.warn({ err: (err as Error).message }, 'SEP-10 verification failed');
+    res.status(401).json({ error: 'Challenge verification failed' });
+  }
 });
 
-/** GET /api/auth/me — return the authenticated address (verify the token). */
+/** GET /api/auth/me — return the authenticated address for the current token. */
 router.get('/me', (req: Request, res: Response) => {
   const header = req.headers['authorization'];
-  const token  = header?.startsWith('Bearer ') ? header.slice(7) : null;
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : null;
   if (!token) { res.status(401).json({ success: false, error: 'No token' }); return; }
 
   const session = validateSessionToken(token);
@@ -132,11 +127,8 @@ router.get('/me', (req: Request, res: Response) => {
   res.json({ success: true, data: { address: session.address } });
 });
 
-/** POST /api/auth/logout — invalidate the session. */
-router.post('/logout', (req: Request, res: Response) => {
-  const header = req.headers['authorization'];
-  const token  = header?.startsWith('Bearer ') ? header.slice(7) : null;
-  if (token) sessions.delete(token);
+/** POST /api/auth/logout — JWTs are stateless; the client simply discards the token. */
+router.post('/logout', (_req: Request, res: Response) => {
   res.json({ success: true });
 });
 
