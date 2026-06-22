@@ -67,6 +67,27 @@ info "Admin public key: $ADMIN_PK"
 read -p "Confirm this is correct (y/N): " CONFIRM_KEY
 [[ "$CONFIRM_KEY" != "y" ]] && error "Cancelled."
 
+# agent-registry uses an M-of-N admin multisig — no single key should be able
+# to ban/slash an agent unilaterally on mainnet. Set ADDITIONAL_ADMIN_PKS
+# (comma-separated G... public keys) for at least 2 more independent signers.
+EXTRA_ADMINS=()
+if [[ -n "${ADDITIONAL_ADMIN_PKS:-}" ]]; then
+  IFS=',' read -ra EXTRA_ADMINS <<< "$ADDITIONAL_ADMIN_PKS"
+fi
+if [[ ${#EXTRA_ADMINS[@]} -eq 0 && "${ALLOW_SOLO_ADMIN:-}" != "1" ]]; then
+  error "Mainnet deploy needs >=2 additional admin keys (set ADDITIONAL_ADMIN_PKS, comma-separated) so no single key can ban/slash an agent alone. Set ALLOW_SOLO_ADMIN=1 to override (not recommended)."
+fi
+ADMINS_JSON="[\"$ADMIN_PK\""
+for pk in "${EXTRA_ADMINS[@]}"; do
+  ADMINS_JSON="$ADMINS_JSON,\"$pk\""
+done
+ADMINS_JSON="$ADMINS_JSON]"
+TOTAL_ADMINS=$(( 1 + ${#EXTRA_ADMINS[@]} ))
+DEFAULT_THRESHOLD=$(( TOTAL_ADMINS / 2 + 1 ))
+[[ $DEFAULT_THRESHOLD -gt $TOTAL_ADMINS ]] && DEFAULT_THRESHOLD=$TOTAL_ADMINS
+ADMIN_THRESHOLD="${ADMIN_THRESHOLD:-$DEFAULT_THRESHOLD}"
+info "agent-registry admins: $ADMINS_JSON (threshold $ADMIN_THRESHOLD-of-$TOTAL_ADMINS)"
+
 # Deploy
 info "Deploying x402-verifier to mainnet..."
 X402_ID=$(stellar contract deploy \
@@ -102,7 +123,7 @@ REGISTRY_ID=$(stellar contract deploy \
   --network "$NETWORK")
 info "agent-registry: $REGISTRY_ID"
 stellar contract invoke --id "$REGISTRY_ID" --source admin --network "$NETWORK" \
-  -- initialize --admin "$ADMIN_PK"
+  -- initialize --admins "$ADMINS_JSON" --admin_threshold "$ADMIN_THRESHOLD"
 
 info "Deploying strategy-marketplace to mainnet..."
 MARKETPLACE_ID=$(stellar contract deploy \
