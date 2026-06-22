@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.3.1",
     "@stellar/stellar-sdk": "^12.3.0",
     "@types/jsonwebtoken": "^9.0.10",
     "axios": "^1.7.2",
