@@ -196,6 +196,9 @@ Fixed-denomination shielded mixer (10 XLM per note). Deposits insert a SHA-256 c
 #### `x402-verifier` / `dwallet-verifier`
 Payment attestation and Ika dWallet signature verification contracts.
 
+#### `smart-wallet`
+Soroban custom account (`CustomAccountInterface`) for passkey-based account abstraction. Binds a deployed instance to a passkey's secp256r1 public key; `__check_auth` verifies WebAuthn assertions natively on-chain instead of a classic Ed25519 signature — see [Authentication](#authentication).
+
 ---
 
 ### 5. TypeScript SDK (`/sdk`)
@@ -271,6 +274,17 @@ VeilVault1 uses [SEP-10 Stellar Web Authentication](https://stellar.org/protocol
 Because the request/response shapes follow the SEP-10 spec, any standard Stellar wallet can authenticate against this backend, not just the VeilVault1 frontend — `frontend/public/.well-known/stellar.toml` advertises the `WEB_AUTH_ENDPOINT` and signing key. `GET /api/auth/me` returns the authenticated address; `POST /api/auth/logout` is a no-op since JWTs are stateless (the client just discards the token).
 
 For local development, the static key below works on every endpoint without running the SEP-10 flow.
+
+### Account abstraction (passkey sign-in)
+
+As an alternative to a Stellar keypair, users can sign in with a device passkey (Face ID, fingerprint, Windows Hello) — no secret key, no browser extension. Registering a passkey deploys a `smart-wallet` Soroban contract instance bound to the passkey's secp256r1 public key; that contract's address **is** the wallet address. The contract implements Soroban's native `CustomAccountInterface`, so `__check_auth` verifies a WebAuthn assertion (`authenticatorData` + `clientDataJSON` + signature) directly on-chain instead of an Ed25519 signature — see [contracts/smart-wallet](contracts/smart-wallet).
+
+1. `POST /api/auth/passkey/register/options { userName }` → WebAuthn registration options
+2. Browser calls `navigator.credentials.create()` (via `@simplewebauthn/browser`)
+3. `POST /api/auth/passkey/register/verify { sessionId, response }` → deploys + initializes the wallet contract, returns `{ walletAddress, token }`
+4. Returning users: `POST /api/auth/passkey/login/options { walletAddress }` → `POST /api/auth/passkey/login/verify` → fresh `{ token }`, no transaction involved
+
+**Scope note:** sign-in (login → session JWT) is fully implemented and verifies the WebAuthn assertion server-side. Authorizing an actual on-chain transaction *as* a passkey wallet (exercising `__check_auth` for a real payment/deposit) is not yet wired up — it needs a per-transaction WebAuthn ceremony plus DER→raw signature decoding and low-S normalization before submission (Soroban's `secp256r1_verify` rejects non-canonical signatures, which browser-issued ECDSA signatures aren't guaranteed to be). That's the next milestone for this feature.
 
 ## API Reference
 
