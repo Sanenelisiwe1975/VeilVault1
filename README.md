@@ -1,8 +1,8 @@
-# VeilVault1
+# VeilVault
 
 **Private and programmable yield platform for AI agents on Stellar.**
 
-VeilVault1 enables users and autonomous AI agents to safely deploy capital across Stellar-based DeFi protocols, run confidential yield strategies using Fully Homomorphic Encryption, enforce on-chain risk guardrails, make machine-to-machine payments via the x402 protocol, and transact privately through a MiMC-5 Merkle-based privacy pool. Built for African users and emerging markets — mobile-first, low-fee, and privacy-native.
+VeilVault enables users and autonomous AI agents to safely deploy capital across Stellar-based DeFi protocols, run confidential yield strategies using Fully Homomorphic Encryption, enforce on-chain risk guardrails, make machine-to-machine payments via the x402 protocol, and transact privately through a MiMC-5 Merkle-based privacy pool. Built for African users and emerging markets — mobile-first, low-fee, and privacy-native.
 
 At the core is a single shared yield engine (`vault`) with on-chain guardrails. Three independent products draw on that same engine: **individual deposits** (any user, direct yield), the **strategy marketplace** (third-party strategies executing against vault capital), and **stokvel** (group savings with M-of-N payout approval). Stokvel is one consumer of the vault, not the platform itself.
 
