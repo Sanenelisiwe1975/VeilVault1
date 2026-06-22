@@ -18,7 +18,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "bytes": "04c2047754bc31f4b12812c1c4f480f628ccb841f8be5650a9160806ece5a4d6336f8f7f6463a84db1be9e21af59a27968ef2a9cad78a4384db29fbeb58740c8a1"
+                  "bytes": "040380eaa9975e6d373792f39bf7592c1969782e7932b600ddb0b9f48f1eb03b1d2b2719af9a95055114fd941b9ca29290fb84b830dc108e2e62788442ff798464"
                 }
               ]
             }
@@ -104,7 +104,7 @@
                           ]
                         },
                         "val": {
-                          "bytes": "04c2047754bc31f4b12812c1c4f480f628ccb841f8be5650a9160806ece5a4d6336f8f7f6463a84db1be9e21af59a27968ef2a9cad78a4384db29fbeb58740c8a1"
+                          "bytes": "040380eaa9975e6d373792f39bf7592c1969782e7932b600ddb0b9f48f1eb03b1d2b2719af9a95055114fd941b9ca29290fb84b830dc108e2e62788442ff798464"
                         }
                       }
                     ]
