@@ -60,6 +60,7 @@ export class MultiAgentService {
 
   constructor(stellar: StellarClient) {
     this.stellar = stellar;
+    if (!config.VAULT_CONTRACT_ID) throw new Error('VAULT_CONTRACT_ID not set');
     this.vaultContractId = config.VAULT_CONTRACT_ID;
   }
 
