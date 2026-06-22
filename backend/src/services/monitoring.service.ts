@@ -33,7 +33,7 @@ export class MonitoringService {
 
   private emit(alert: Omit<Alert, 'timestamp'>): void {
     const full: Alert = { ...alert, timestamp: Date.now() };
-    log[full.level](full, full.message);
+    log[full.level]({ ...full }, full.message);
     this.alertHandlers.forEach(h => h(full));
   }
 
