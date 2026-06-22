@@ -7,7 +7,7 @@
  *     e.g. VITE_API_URL=https://your-backend.up.railway.app
  *
  * Bearer token priority (highest to lowest):
- *   1. Session token from POST /api/auth/token
+ *   1. Session token from SEP-10 auth (GET/POST /api/auth)
  *   2. User-configured API key from localStorage
  *   3. Default dev key
  */
