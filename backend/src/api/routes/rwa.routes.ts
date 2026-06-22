@@ -15,7 +15,7 @@ function svc() {
   return getRWAOptimizerService(stellarClient);
 }
 
-function validate<T>(schema: z.ZodSchema<T>, data: unknown, res: Response): T | null {
+function validate<S extends z.ZodSchema>(schema: S, data: unknown, res: Response): z.infer<S> | null {
   const r = schema.safeParse(data);
   if (!r.success) {
     res.status(400).json({ success: false, error: r.error.flatten() });
