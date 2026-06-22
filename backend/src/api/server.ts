@@ -4,6 +4,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { requestId, apiKeyAuth } from './middleware/auth.middleware';
 import authRoutes from './routes/auth.routes';
+import passkeyRoutes from './routes/passkey.routes';
 import vaultRoutes from './routes/vault.routes';
 import agentRoutes from './routes/agent.routes';
 import paymentRoutes from './routes/payment.routes';
@@ -48,6 +49,7 @@ export function createServer(): express.Application {
     res.json({ status: 'ok', version: process.env.npm_package_version ?? '0.1.0', ts: Date.now() });
   });
   app.use('/api/auth', authRoutes);
+  app.use('/api/auth/passkey', passkeyRoutes);
 
   // All other API routes require a valid Bearer token (API key OR session token)
 

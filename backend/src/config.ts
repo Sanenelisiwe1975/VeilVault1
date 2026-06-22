@@ -34,6 +34,12 @@ const EnvSchema = z.object({
   WEB_AUTH_DOMAIN: z.string().default('veilvault1.onrender.com'),
   HOME_DOMAIN: z.string().default('veil-vault1.vercel.app'),
 
+  // Passkey / account-abstraction sign-in (WebAuthn + Soroban smart-wallet contract)
+  WEBAUTHN_RP_NAME: z.string().default('VeilVault1'),
+  WEBAUTHN_RP_ID: z.string().default('localhost'),
+  WEBAUTHN_ORIGIN: z.string().default('http://localhost:5173'),
+  SMART_WALLET_WASM_HASH: z.string().optional(),
+
   // Oracle keypair (for x402 payment attestation)
   ORACLE_SECRET_KEY: z.string(),
 
