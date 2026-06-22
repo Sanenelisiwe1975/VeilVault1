@@ -18,9 +18,10 @@
 ### Agent Registry (`contracts/agent-registry`)
 
 - Only the agent's own address can register or update its VC
-- VC acceptance requires admin signature (off-chain KYA review)
-- Slash/ban require admin — reputation cannot be inflated by the agent itself
+- Ban, unban, slash, and VC acceptance go through an M-of-N admin proposal flow (`propose_admin_action` → `approve_admin_action` → `execute_admin_action`) — no single admin key can unilaterally ban or slash an agent; `admin_threshold` distinct admin signatures are required
+- Reputation cannot be inflated by the agent itself
 - `reputation_updaters` whitelist restricts who can call `record_success/failure`
+- Lower-risk, one-time configuration (`add_reputation_updater`, `set_zk_verifier`, `register_attribute_type`) remains callable by any single admin, since these configure the system rather than act against a specific agent
 
 ### Strategy Marketplace (`contracts/strategy-marketplace`)
 
