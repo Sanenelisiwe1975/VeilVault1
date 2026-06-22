@@ -9,11 +9,13 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { Keypair } from "@stellar/stellar-sdk";
 import { fetchSep10Challenge, signSep10ChallengeWithSecret, submitSep10Token } from "../lib/stellar";
+import { registerPasskey, loginPasskey as loginPasskeyRequest } from "../lib/passkey";
 import { setSessionToken } from "../lib/api";
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const PASSKEY_WALLET_STORAGE_KEY = "veilvault_passkey_wallet";
 
-export type WalletType = "secret-key" | "freighter" | null;
+export type WalletType = "secret-key" | "freighter" | "passkey" | null;
 
 interface WalletSessionCtx {
   address:     string | null;
@@ -26,6 +28,12 @@ interface WalletSessionCtx {
   connect:          (secretKey: string) => { address: string } | { error: string };
   /** Connect via Freighter browser wallet. */
   connectFreighter: () => Promise<{ address: string } | { error: string }>;
+  /** Register a brand-new passkey wallet (deploys a smart-wallet contract). */
+  registerPasskeyWallet: (userName: string) => Promise<{ address: string } | { error: string }>;
+  /** Sign in with a previously registered passkey wallet address. */
+  loginPasskeyWallet:    (walletAddress: string) => Promise<{ address: string } | { error: string }>;
+  /** Address of the last passkey wallet registered on this device, if any. */
+  storedPasskeyWallet:   string | null;
   /** Disconnect and clear all state. */
   disconnect:       () => void;
 
@@ -45,6 +53,9 @@ const Ctx = createContext<WalletSessionCtx>({
   address: null, secretKey: null, walletType: null, isConnected: false, authToken: null,
   connect:          () => ({ error: "no provider" }),
   connectFreighter: async () => ({ error: "no provider" }),
+  registerPasskeyWallet: async () => ({ error: "no provider" }),
+  loginPasskeyWallet:    async () => ({ error: "no provider" }),
+  storedPasskeyWallet:   null,
   disconnect:       () => {},
   signTransaction:  async () => { throw new Error("not connected"); },
   setAuthToken:     () => {},
@@ -120,6 +131,42 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     }
   }, [authenticate]);
 
+  // ── Passkey (account abstraction) connection ───────────────────────────────
+
+  const registerPasskeyWallet = useCallback(async (userName: string): Promise<{ address: string } | { error: string }> => {
+    try {
+      const { walletAddress, token } = await registerPasskey(API_BASE, userName);
+      setAddress(walletAddress);
+      setSecretKey(null);
+      setWalletType("passkey");
+      setAuthToken(token);
+      setSessionToken(token);
+      localStorage.setItem(PASSKEY_WALLET_STORAGE_KEY, walletAddress);
+      return { address: walletAddress };
+    } catch (e) {
+      return { error: `Passkey registration failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }, []);
+
+  const loginPasskeyWallet = useCallback(async (walletAddress: string): Promise<{ address: string } | { error: string }> => {
+    try {
+      const result = await loginPasskeyRequest(API_BASE, walletAddress);
+      setAddress(result.walletAddress);
+      setSecretKey(null);
+      setWalletType("passkey");
+      setAuthToken(result.token);
+      setSessionToken(result.token);
+      localStorage.setItem(PASSKEY_WALLET_STORAGE_KEY, result.walletAddress);
+      return { address: result.walletAddress };
+    } catch (e) {
+      return { error: `Passkey sign-in failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }, []);
+
+  const storedPasskeyWallet = typeof window !== "undefined"
+    ? localStorage.getItem(PASSKEY_WALLET_STORAGE_KEY)
+    : null;
+
   // ── Disconnect ─────────────────────────────────────────────────────────────
 
   const disconnect = useCallback(() => {
@@ -149,13 +196,23 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       return result.signedTxXdr;
     }
 
+    if (walletType === "passkey") {
+      // Signing in is fully supported (issues a session JWT, no transaction
+      // involved). Authorizing an actual on-chain transaction as a passkey
+      // wallet requires a WebAuthn ceremony per-transaction plus DER/low-S
+      // signature normalization before submitting to the smart-wallet
+      // contract's __check_auth — not yet wired up.
+      throw new Error("Signing transactions with a passkey wallet isn't supported yet — sign in is.");
+    }
+
     throw new Error("Wallet not connected");
   }, [walletType, secretKey]);
 
   return (
     <Ctx.Provider value={{
       address, secretKey, walletType, isConnected: !!address, authToken,
-      connect, connectFreighter, disconnect, signTransaction, setAuthToken,
+      connect, connectFreighter, registerPasskeyWallet, loginPasskeyWallet, storedPasskeyWallet,
+      disconnect, signTransaction, setAuthToken,
     }}>
       {children}
     </Ctx.Provider>
