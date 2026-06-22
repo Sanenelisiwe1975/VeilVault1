@@ -5,7 +5,11 @@ import {
   TransactionBuilder,
   BASE_FEE,
   xdr,
+  Operation,
+  Address,
+  scValToNative,
 } from '@stellar/stellar-sdk';
+import { randomBytes } from 'crypto';
 import { config, STELLAR_NETWORKS } from '../../config';
 import { createChildLogger } from '../../utils/logger';
 
@@ -130,6 +134,89 @@ export class StellarClient {
       await new Promise(r => setTimeout(r, 2_000));
     }
     throw new Error(`Transaction ${txHash} not confirmed within ${timeoutMs}ms`);
+  }
+
+  /**
+   * Upload a contract's WASM bytecode. Idempotent — uploading the same
+   * bytes twice yields the same hash (the second upload is a no-op cost-wise
+   * on most networks, but still requires a signed transaction).
+   */
+  async uploadWasm(wasm: Buffer, signerSecretKey: string): Promise<{ wasmHash: Buffer; txHash: string }> {
+    const signer = Keypair.fromSecret(signerSecretKey);
+    const account = await this.loadAccount(signer.publicKey());
+
+    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: this.networkPassphrase })
+      .addOperation(Operation.uploadContractWasm({ wasm }))
+      .setTimeout(30)
+      .build();
+
+    const simResult = await this.simulate(tx);
+    if (StellarRpc.Api.isSimulationError(simResult)) {
+      throw new Error(`uploadContractWasm simulation failed: ${simResult.error}`);
+    }
+    const prepared = StellarRpc.assembleTransaction(tx, simResult).build();
+    prepared.sign(signer);
+
+    const response = await this.rpc.sendTransaction(prepared);
+    if (response.status === 'ERROR') {
+      throw new Error(`uploadContractWasm submission failed: ${response.errorResult?.toString()}`);
+    }
+    const confirmed = await this.waitForTransaction(response.hash);
+    if (confirmed.status !== 'SUCCESS' || !confirmed.resultMetaXdr) {
+      throw new Error('uploadContractWasm did not succeed');
+    }
+    const returnVal = confirmed.resultMetaXdr.v3().sorobanMeta()?.returnValue();
+    if (!returnVal) throw new Error('No return value from uploadContractWasm');
+    const wasmHash = Buffer.from(scValToNative(returnVal) as Uint8Array);
+
+    log.info({ txHash: response.hash, wasmHash: wasmHash.toString('hex') }, 'Contract WASM uploaded');
+    return { wasmHash, txHash: response.hash };
+  }
+
+  /**
+   * Deploy a new instance of an already-uploaded contract WASM (does not
+   * call any constructor/initialize method — callers must do that as a
+   * separate invocation). Returns the new contract's address.
+   */
+  async deployContract(params: {
+    wasmHash: Buffer;
+    deployerSecretKey: string;
+    salt?: Buffer;
+  }): Promise<{ contractAddress: string; txHash: string }> {
+    const signer = Keypair.fromSecret(params.deployerSecretKey);
+    const account = await this.loadAccount(signer.publicKey());
+    const salt = params.salt ?? randomBytes(32);
+
+    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: this.networkPassphrase })
+      .addOperation(Operation.createCustomContract({
+        address: new Address(signer.publicKey()),
+        wasmHash: params.wasmHash,
+        salt,
+      }))
+      .setTimeout(30)
+      .build();
+
+    const simResult = await this.simulate(tx);
+    if (StellarRpc.Api.isSimulationError(simResult)) {
+      throw new Error(`createCustomContract simulation failed: ${simResult.error}`);
+    }
+    const prepared = StellarRpc.assembleTransaction(tx, simResult).build();
+    prepared.sign(signer);
+
+    const response = await this.rpc.sendTransaction(prepared);
+    if (response.status === 'ERROR') {
+      throw new Error(`createCustomContract submission failed: ${response.errorResult?.toString()}`);
+    }
+    const confirmed = await this.waitForTransaction(response.hash);
+    if (confirmed.status !== 'SUCCESS' || !confirmed.resultMetaXdr) {
+      throw new Error('createCustomContract did not succeed');
+    }
+    const returnVal = confirmed.resultMetaXdr.v3().sorobanMeta()?.returnValue();
+    if (!returnVal) throw new Error('No return value from createCustomContract');
+    const contractAddress = Address.fromScVal(returnVal).toString();
+
+    log.info({ txHash: response.hash, contractAddress }, 'Contract instance deployed');
+    return { contractAddress, txHash: response.hash };
   }
 
   /**
