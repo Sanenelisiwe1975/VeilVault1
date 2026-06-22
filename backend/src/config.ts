@@ -28,6 +28,12 @@ const EnvSchema = z.object({
   // Admin keypair (secret key for signing admin transactions)
   ADMIN_SECRET_KEY: z.string(),
 
+  // SEP-10 Web Authentication
+  // Dedicated signing key for SEP-10 challenges; falls back to ADMIN_SECRET_KEY if unset.
+  SEP10_SIGNING_SECRET_KEY: z.string().optional(),
+  WEB_AUTH_DOMAIN: z.string().default('veilvault1.onrender.com'),
+  HOME_DOMAIN: z.string().default('veil-vault1.vercel.app'),
+
   // Oracle keypair (for x402 payment attestation)
   ORACLE_SECRET_KEY: z.string(),
 
