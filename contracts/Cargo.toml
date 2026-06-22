@@ -8,6 +8,7 @@ members = [
     "stokvel-vault",
     "zk-attestation",
     "privacy-pool",
+    "smart-wallet",
 ]
 resolver = "2"
 
