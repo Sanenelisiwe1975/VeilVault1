@@ -57,11 +57,36 @@ export function signWithSecret(tx: Transaction, secretKey: string): Transaction 
   return tx;
 }
 
-/** Sign a challenge message with a secret key (for auth). */
-export function signChallenge(challenge: string, secretKey: string): string {
-  const kp  = Keypair.fromSecret(secretKey);
-  const sig = kp.sign(Buffer.from(challenge, "utf8"));
-  return sig.toString("base64");
+// ─── SEP-10 Web Authentication ────────────────────────────────────────────────
+
+/** GET the SEP-10 challenge transaction for an account from the backend. */
+export async function fetchSep10Challenge(
+  apiBase: string,
+  account: string,
+): Promise<{ transaction: string; network_passphrase: string }> {
+  const res = await fetch(`${apiBase}/api/auth?account=${encodeURIComponent(account)}`);
+  if (!res.ok) throw new Error(`SEP-10 challenge request failed: HTTP ${res.status}`);
+  return res.json();
+}
+
+/** Sign a SEP-10 challenge transaction XDR with a raw secret key. */
+export function signSep10ChallengeWithSecret(xdr: string, secretKey: string): string {
+  const kp = Keypair.fromSecret(secretKey);
+  const tx = TransactionBuilder.fromXDR(xdr, NETWORK_PASSPHRASE) as Transaction;
+  tx.sign(kp);
+  return tx.toXDR();
+}
+
+/** Exchange a signed SEP-10 challenge for a session token (JWT). */
+export async function submitSep10Token(apiBase: string, signedXdr: string): Promise<string> {
+  const res = await fetch(`${apiBase}/api/auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transaction: signedXdr }),
+  });
+  if (!res.ok) throw new Error(`SEP-10 token exchange failed: HTTP ${res.status}`);
+  const data = await res.json();
+  return data.token;
 }
 
 // ─── Submission ───────────────────────────────────────────────────────────────
