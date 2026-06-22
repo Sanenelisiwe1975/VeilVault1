@@ -67,7 +67,7 @@ export class StrategyMarketplaceService {
   }): Promise<string> {
     logger.info('Publishing strategy', { name: params.name, author: params.author });
 
-    const result = await this.stellar.invokeContract(
+    const { result } = await this.stellar.invokeContract(
       this.contractId,
       'publish_strategy',
       [
@@ -82,7 +82,8 @@ export class StrategyMarketplaceService {
       params.authorSecret
     );
 
-    const strategyId = scValToNative(result as Parameters<typeof scValToNative>[0]) as Uint8Array;
+    if (!result) throw new Error('No return value from publish_strategy call');
+    const strategyId = scValToNative(result) as Uint8Array;
     return Buffer.from(strategyId).toString('hex');
   }
 
