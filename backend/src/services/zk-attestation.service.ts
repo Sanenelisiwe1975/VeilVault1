@@ -139,7 +139,7 @@ export class ZkAttestationService {
       c: params.proof.c,
     };
 
-    const result = await this.stellar.invokeContract(
+    const { result } = await this.stellar.invokeContract(
       this.contractId,
       'attest_performance',
       [
@@ -156,7 +156,8 @@ export class ZkAttestationService {
       params.proverSecret
     );
 
-    const attestId = scValToNative(result as Parameters<typeof scValToNative>[0]) as Uint8Array;
+    if (!result) throw new Error('No return value from attest_performance call');
+    const attestId = scValToNative(result) as Uint8Array;
     return Buffer.from(attestId).toString('hex');
   }
 
