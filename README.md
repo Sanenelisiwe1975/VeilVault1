@@ -4,6 +4,8 @@
 
 VeilVault1 enables users and autonomous AI agents to safely deploy capital across Stellar-based DeFi protocols, run confidential yield strategies using Fully Homomorphic Encryption, enforce on-chain risk guardrails, make machine-to-machine payments via the x402 protocol, and transact privately through a MiMC-5 Merkle-based privacy pool. Built for African users and emerging markets — mobile-first, low-fee, and privacy-native.
 
+At the core is a single shared yield engine (`vault`) with on-chain guardrails. Three independent products draw on that same engine: **individual deposits** (any user, direct yield), the **strategy marketplace** (third-party strategies executing against vault capital), and **stokvel** (group savings with M-of-N payout approval). Stokvel is one consumer of the vault, not the platform itself.
+
 ---
 
 ## Architecture Overview
@@ -31,12 +33,12 @@ VeilVault1 enables users and autonomous AI agents to safely deploy capital acros
 └─────────────────────────────────────────────────────────────────────────┘
 
 Stellar Testnet
-  ├── vault                  ERC4626-style shares, guardrails, agent management
+  ├── vault                  Shared yield engine — ERC4626-style shares, guardrails, agent management
+  │     ├── strategy-marketplace   On-chain strategy listings + fee routing, executes against vault capital
+  │     └── stokvel-vault          Group savings (rotating payout) — one consumer of the vault, via set_yield_vault
   ├── x402-verifier          Payment attestation + replay protection
   ├── dwallet-verifier       Ika dWallet ed25519 signature verification
-  ├── agent-registry         KYA reputation system (levels 0–3)
-  ├── strategy-marketplace   On-chain strategy listings + fee routing
-  ├── stokvel-vault          Community savings pool (rotating payout)
+  ├── agent-registry         KYA reputation system (levels 0–3), M-of-N admin multisig
   ├── zk-attestation         Groth16 / BLS12-381 proof verification
   └── privacy-pool           MiMC-5 Merkle mixer (shielded deposits/withdrawals)
 ```
@@ -50,7 +52,7 @@ Stellar Testnet
 | Vault | `CA5UAF7NF2GJMAJPPZMUYSQIDSAR7V53CYGNHULQS3UCHWKD5LW7KXQW` |
 | x402 Verifier | `CATRAJKXFDKULWQ2V47LFOBEQFXUPKAF7S73UNMZ4H2YTLIZEKEIBK5N` |
 | dWallet Verifier | `CDO5BCWNNRK3BOKKLEUKSK4B4PA656725UFNCBA5SJCXO75GNFPIZQGG` |
-| Agent Registry | `CBND24UI7RBAYCXLZM5RH42EVXQLBG6XR3Y4ONA673YBTQQEBPZ6S2TA` |
+| Agent Registry | `CA2WDT4KGPFVZV4J67SJIHBABFLTFS6PB7OHK4ITL77AXMZQFJAHKLYR` |
 | Strategy Marketplace | `CB25FJV362DOLINALRMLOQMJEMDV3UF4D3ZIVTBUBKEQWZWWZONDAKPW` |
 | Stokvel Vault | `CAFXKDFFS2LFGG2V3EMYOMXPOB5HZWF367CY42Z4WWKA2ZQPKM7TPODM` |
 | ZK Attestation | `CBLYCZWDBYB6JQ4BAZSPUTCR77423VXE4QZOI5ZVZO6XQQ5YEVNPOR7A` |
@@ -85,7 +87,7 @@ React + Vite + TypeScript single-page application. Mobile-first design, Material
 | Security | On-chain guardrail overview, MPC wallet status |
 | Settings | Network, display preferences |
 
-**Wallet session:** users enter their Stellar secret key once (held in memory only — never stored). The key is passed to backend API calls that require signing. A "Connect Wallet" pill lives in the top-right of every dashboard page.
+**Wallet session:** connect with Freighter/Lobstr or a raw Stellar secret key (held in memory only — never stored). Either path runs a [SEP-10](https://stellar.org/protocol/sep-10) challenge/response in the background to obtain a session token — see [Authentication](#authentication). A "Connect Wallet" pill lives in the top-right of every dashboard page.
 
 **Run:**
 ```bash
@@ -99,7 +101,7 @@ Backend proxy: `/api/*` requests are forwarded to `http://localhost:3000`.
 
 ### 2. Backend Service (`/backend`)
 
-Express.js/TypeScript server. All endpoints require `Authorization: Bearer <api-key>` except `/health`.
+Express.js/TypeScript server. All endpoints under `/api/*` require `Authorization: Bearer <token>` except `/health` and `/api/auth/*`. The token is either a SEP-10 session JWT or the static dev API key — see [Authentication](#authentication).
 
 **Default dev key:** `veilpool-dev-key` (set `API_KEY_HASH` in `.env` to change)
 
@@ -176,6 +178,8 @@ ERC4626-style vault. Tracks user shares and total assets, enforces on-chain guar
 
 #### `agent-registry` (KYA — Know Your Agent)
 On-chain reputation system with four levels (0 = unregistered, 1 = basic, 2 = verified, 3 = elite). Agents register profiles with a DID and verifiable credential hash, accumulate reputation via `record_success` / `record_failure`, and can attach selective-disclosure ZK attribute proofs.
+
+Punitive/identity actions against a specific agent — `ban`, `unban`, `slash`, `accept_vc` — require **M-of-N admin multisig** approval via `propose_admin_action` → `approve_admin_action` → `execute_admin_action`. No single admin key can unilaterally ban or slash an agent (verified live on testnet — see [docs/security.md](docs/security.md)).
 
 #### `strategy-marketplace`
 Lists yield strategies on-chain with fee routing. Strategy providers earn `provider_fee_bps`; the platform earns `platform_fee_bps`.
@@ -255,9 +259,22 @@ bash scripts/deploy-testnet.sh
 
 ---
 
+## Authentication
+
+VeilVault1 uses [SEP-10 Stellar Web Authentication](https://stellar.org/protocol/sep-10) for wallet-based sessions, alongside a static API key for quick local testing.
+
+1. `GET /api/auth?account=G...` → returns a SEP-10 challenge transaction (`{ transaction, network_passphrase }`)
+2. Client signs it with their Stellar keypair — secret key or Freighter/Lobstr — **without** submitting it to the network
+3. `POST /api/auth { transaction: <signed envelope xdr> }` → returns `{ token }`, a session JWT
+4. Pass `Authorization: Bearer <token>` on subsequent requests
+
+Because the request/response shapes follow the SEP-10 spec, any standard Stellar wallet can authenticate against this backend, not just the VeilVault1 frontend — `frontend/public/.well-known/stellar.toml` advertises the `WEB_AUTH_ENDPOINT` and signing key. `GET /api/auth/me` returns the authenticated address; `POST /api/auth/logout` is a no-op since JWTs are stateless (the client just discards the token).
+
+For local development, the static key below works on every endpoint without running the SEP-10 flow.
+
 ## API Reference
 
-All requests require: `Authorization: Bearer veilpool-dev-key`
+All requests require: `Authorization: Bearer veilpool-dev-key` (or a SEP-10 session token — see [Authentication](#authentication))
 
 ### Vault
 | Method | Path | Body / Params | Description |
@@ -275,6 +292,11 @@ All requests require: `Authorization: Bearer veilpool-dev-key`
 | `GET` | `/api/registry/:address` | Profile + reputation level |
 | `GET` | `/api/registry/:address/level?min=N` | Check minimum level |
 | `POST` | `/api/registry/vc-update` | Submit updated verifiable credential |
+| `POST` | `/api/registry/admin/propose` | `{ proposer, action, target, amount?, proposerSecret }` — propose ban/unban/slash/accept-vc (action 0–3) |
+| `POST` | `/api/registry/admin/approve` | `{ approver, proposalId, approverSecret }` — approve a pending proposal |
+| `POST` | `/api/registry/admin/execute` | `{ executor, proposalId, executorSecret }` — execute once threshold is met |
+| `GET` | `/api/registry/admin/proposal/:id` | Proposal status, approvals, target |
+| `GET` | `/api/registry/admin/config` | Admin set + multisig threshold |
 
 ### Strategies
 | Method | Path | Description |
@@ -375,10 +397,12 @@ Smart-contract stokvel: funds held in the `stokvel-vault` contract, not by any i
 1. **Never commit `.env`** — contains admin and oracle secret keys
 2. **FHE private keys** (`fhe-keys/*.priv`) are mode 0600 — never expose them
 3. **Frontend secret key** — held in memory only during the browser session; cleared on tab close or "Disconnect"
-4. **Admin secret key** — controls contract management; use a hardware wallet for mainnet
-5. **Guardrails** are enforced entirely on-chain; AI agents cannot bypass them
-6. **Emergency stop** halts all agent operations with a single admin transaction
-7. **Deposit notes** (privacy pool) — never stored on any server; losing them locks funds permanently
+4. **Vault admin secret key** — controls vault contract management (guardrails, agent allowlist); use a hardware wallet for mainnet
+5. **Agent-registry admin actions** (ban/unban/slash/accept-vc) require M-of-N admin multisig — no single admin key can act alone; see `docs/security.md` and `docs/compliance.md`
+6. **Guardrails** are enforced entirely on-chain; AI agents cannot bypass them
+7. **Emergency stop** halts all vault agent operations with a single admin transaction
+8. **Deposit notes** (privacy pool) — never stored on any server; losing them locks funds permanently
+9. **Session tokens** (SEP-10 JWTs) expire after 24h and are verified with `JWT_SECRET` — rotate it to invalidate all sessions
 
 ---
 
