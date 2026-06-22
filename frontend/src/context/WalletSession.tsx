@@ -8,8 +8,10 @@
  */
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { Keypair } from "@stellar/stellar-sdk";
-import { signChallenge } from "../lib/stellar";
-import { api, setSessionToken } from "../lib/api";
+import { fetchSep10Challenge, signSep10ChallengeWithSecret, submitSep10Token } from "../lib/stellar";
+import { setSessionToken } from "../lib/api";
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export type WalletType = "secret-key" | "freighter" | null;
 
@@ -35,9 +37,6 @@ interface WalletSessionCtx {
    */
   signTransaction: (xdr: string) => Promise<string>;
 
-  /** Sign an arbitrary challenge string (for auth). Secret-key mode only. */
-  signChallengeFn: (challenge: string) => string | null;
-
   /** Store an auth token returned by the backend. */
   setAuthToken: (token: string | null) => void;
 }
@@ -48,7 +47,6 @@ const Ctx = createContext<WalletSessionCtx>({
   connectFreighter: async () => ({ error: "no provider" }),
   disconnect:       () => {},
   signTransaction:  async () => { throw new Error("not connected"); },
-  signChallengeFn:  () => null,
   setAuthToken:     () => {},
 });
 
@@ -58,21 +56,15 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
   const [walletType, setWalletType] = useState<WalletType>(null);
   const [authToken,  setAuthToken]  = useState<string | null>(null);
 
-  // ── Background auth (challenge → sign → session token) ────────────────────
+  // ── Background auth (SEP-10: fetch challenge tx → sign → exchange for JWT) ──
 
-  const authenticate = useCallback(async (addr: string, sk: string | null) => {
+  const authenticate = useCallback(async (addr: string, signXdr: (xdr: string) => Promise<string>) => {
     try {
-      const { data: { challenge } } = await api.post<{ success: boolean; data: { challenge: string } }>(
-        "/auth/challenge", { address: addr }
-      );
-      const signature = sk ? signChallenge(challenge, sk) : null;
-      if (!signature) return; // Freighter users: skip — they use API key for now
-
-      const { data } = await api.post<{ success: boolean; data: { token: string } }>(
-        "/auth/token", { address: addr, challenge, signature }
-      );
-      setAuthToken(data.token);
-      setSessionToken(data.token);
+      const { transaction } = await fetchSep10Challenge(API_BASE, addr);
+      const signedXdr = await signXdr(transaction);
+      const token = await submitSep10Token(API_BASE, signedXdr);
+      setAuthToken(token);
+      setSessionToken(token);
     } catch {
       // Auth is optional — app still works with the static API key
     }
@@ -82,11 +74,12 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
 
   const connect = useCallback((sk: string): { address: string } | { error: string } => {
     try {
-      const addr = Keypair.fromSecret(sk.trim()).publicKey();
+      const trimmed = sk.trim();
+      const addr = Keypair.fromSecret(trimmed).publicKey();
       setAddress(addr);
-      setSecretKey(sk.trim());
+      setSecretKey(trimmed);
       setWalletType("secret-key");
-      authenticate(addr, sk.trim()); // fire-and-forget
+      authenticate(addr, async (xdr) => signSep10ChallengeWithSecret(xdr, trimmed)); // fire-and-forget
       return { address: addr };
     } catch {
       return { error: "Invalid Stellar secret key. Must start with 'S' and be 56 characters." };
@@ -116,7 +109,11 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
       setAddress(addr);
       setSecretKey(null);
       setWalletType("freighter");
-      authenticate(addr, null); // fire-and-forget; Freighter signing for auth not supported yet
+      authenticate(addr, async (xdr) => {
+        const result = await freighter.signTransaction(xdr, { networkPassphrase: "Test SDF Network ; September 2015" });
+        if (result.error) throw new Error(typeof result.error === "string" ? result.error : "Freighter signing failed");
+        return result.signedTxXdr;
+      }); // fire-and-forget
       return { address: addr };
     } catch (e) {
       return { error: `Freighter error: ${e instanceof Error ? e.message : String(e)}` };
@@ -155,17 +152,10 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     throw new Error("Wallet not connected");
   }, [walletType, secretKey]);
 
-  // ── Sign challenge (auth) ──────────────────────────────────────────────────
-
-  const signChallengeFn = useCallback((challenge: string): string | null => {
-    if (!secretKey) return null;
-    return signChallenge(challenge, secretKey);
-  }, [secretKey]);
-
   return (
     <Ctx.Provider value={{
       address, secretKey, walletType, isConnected: !!address, authToken,
-      connect, connectFreighter, disconnect, signTransaction, signChallengeFn, setAuthToken,
+      connect, connectFreighter, disconnect, signTransaction, setAuthToken,
     }}>
       {children}
     </Ctx.Provider>
