@@ -40,9 +40,9 @@ export class FHEService {
     const lib = await getTfhe();
     log.info('Generating FHE key pair (this may take a moment)...');
 
-    const config_fhe = lib.ConfigBuilder.default().build();
-    const clientKey = lib.ClientKey.generate(config_fhe);
-    const publicKey = lib.CompactPublicKey.new(clientKey);
+    const config_fhe = lib.TfheConfigBuilder.default().build();
+    const clientKey = lib.TfheClientKey.generate(config_fhe);
+    const publicKey = lib.TfheCompactPublicKey.new(clientKey);
 
     const keyId = randomNonce().slice(0, 16);
     const keyPair: FHEKeyPair = {
@@ -81,7 +81,7 @@ export class FHEService {
   /** Encrypt a 32-bit signed integer. */
   async encryptInt32(value: number, keyPair: FHEKeyPair): Promise<FHEEncryptedValue> {
     const lib = await getTfhe();
-    const clientKey = lib.ClientKey.deserialize(fromHex(keyPair.privateKey));
+    const clientKey = lib.TfheClientKey.deserialize(fromHex(keyPair.privateKey));
     const ct = lib.FheInt32.encrypt_with_client_key(value, clientKey);
 
     return {
@@ -94,7 +94,7 @@ export class FHEService {
   /** Decrypt a 32-bit signed integer. */
   async decryptInt32(encrypted: FHEEncryptedValue, keyPair: FHEKeyPair): Promise<number> {
     const lib = await getTfhe();
-    const clientKey = lib.ClientKey.deserialize(fromHex(keyPair.privateKey));
+    const clientKey = lib.TfheClientKey.deserialize(fromHex(keyPair.privateKey));
     const ct = lib.FheInt32.deserialize(fromHex(encrypted.ciphertext));
     return ct.decrypt(clientKey) as number;
   }
@@ -102,8 +102,8 @@ export class FHEService {
   /** Encrypt a 64-bit signed integer (for amounts). */
   async encryptInt64(value: bigint, keyPair: FHEKeyPair): Promise<FHEEncryptedValue> {
     const lib = await getTfhe();
-    const clientKey = lib.ClientKey.deserialize(fromHex(keyPair.privateKey));
-    const ct = lib.FheInt64.encrypt_with_client_key(Number(value), clientKey);
+    const clientKey = lib.TfheClientKey.deserialize(fromHex(keyPair.privateKey));
+    const ct = lib.FheInt64.encrypt_with_client_key(value, clientKey);
 
     return {
       ciphertext: toHex(ct.serialize()),
