@@ -29,6 +29,27 @@ ADMIN_PK=$(stellar keys address admin)
 info "Funding admin account on testnet..."
 stellar keys fund admin --network "$NETWORK" 2>/dev/null || warn "Fund request failed (account may already exist)"
 
+# agent-registry uses an M-of-N admin multisig (see contracts/agent-registry).
+# Set ADDITIONAL_ADMIN_PKS (comma-separated G... public keys) in .env to add
+# more independent admin signers; ADMIN_THRESHOLD overrides the default
+# majority threshold. With no additional admins this is a 1-of-1 deployment
+# (fine for a solo testnet demo, but production should use >=3 independent
+# keys with threshold >=2 so no single key can ban/slash an agent alone).
+EXTRA_ADMINS=()
+if [[ -n "${ADDITIONAL_ADMIN_PKS:-}" ]]; then
+  IFS=',' read -ra EXTRA_ADMINS <<< "$ADDITIONAL_ADMIN_PKS"
+fi
+ADMINS_JSON="[\"$ADMIN_PK\""
+for pk in "${EXTRA_ADMINS[@]}"; do
+  ADMINS_JSON="$ADMINS_JSON,\"$pk\""
+done
+ADMINS_JSON="$ADMINS_JSON]"
+TOTAL_ADMINS=$(( 1 + ${#EXTRA_ADMINS[@]} ))
+DEFAULT_THRESHOLD=$(( TOTAL_ADMINS / 2 + 1 ))
+[[ $DEFAULT_THRESHOLD -gt $TOTAL_ADMINS ]] && DEFAULT_THRESHOLD=$TOTAL_ADMINS
+ADMIN_THRESHOLD="${ADMIN_THRESHOLD:-$DEFAULT_THRESHOLD}"
+info "agent-registry admins: $ADMINS_JSON (threshold $ADMIN_THRESHOLD-of-$TOTAL_ADMINS)"
+
 # Build contracts
 info "Building Soroban contracts (optimized release)..."
 cd "$CONTRACTS_DIR"
@@ -131,7 +152,8 @@ stellar contract invoke \
   --source admin \
   --network "$NETWORK" \
   -- initialize \
-  --admin "$ADMIN_PK"
+  --admins "$ADMINS_JSON" \
+  --admin_threshold "$ADMIN_THRESHOLD"
 info "agent-registry initialized."
 
 # Deploy strategy-marketplace
@@ -209,6 +231,7 @@ stellar contract invoke \
   --source admin \
   --network "$NETWORK" \
   -- set_zk_verifier \
+  --caller "$ADMIN_PK" \
   --zk_verifier "$ZK_ID"
 info "agent-registry: zk verifier wired."
 
