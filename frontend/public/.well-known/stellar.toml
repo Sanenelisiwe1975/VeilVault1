@@ -1,0 +1,13 @@
+VERSION="2.0.0"
+
+NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+
+# SEP-10 Web Authentication
+WEB_AUTH_ENDPOINT="https://veilvault1.onrender.com/api/auth"
+# Server's SEP-10 signing public key — copy from the backend startup log line:
+#   "SEP-10 server signing key (publish in stellar.toml as SIGNING_KEY)"
+SIGNING_KEY="REPLACE_WITH_SERVER_PUBLIC_KEY"
+
+[DOCUMENTATION]
+ORG_NAME="VeilVault1"
+ORG_URL="https://veil-vault1.vercel.app"
