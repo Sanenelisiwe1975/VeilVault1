@@ -1,6 +1,4 @@
-import { Keypair } from '@stellar/stellar-sdk';
 import { getVaultService } from './vault.service';
-import { vaultFHEService } from './fhe.service';
 import { dwalletService } from './dwallet.service';
 import { createChildLogger } from '../utils/logger';
 import {
@@ -64,11 +62,8 @@ export class StrategyService {
     );
 
     // Prepare metadata (FHE-encrypted params or empty)
-    let metadata = Buffer.alloc(0);
+    let metadata: Buffer = Buffer.alloc(0);
     if (request.encryptedParams) {
-      metadata = vaultFHEService.parseOnChainMetadata(
-        vaultFHEService.parseOnChainMetadata(Buffer.alloc(0)) as unknown as Buffer,
-      ) as unknown as Buffer;
       metadata = fheService_encryptedToBuffer(request.encryptedParams);
     }
 
@@ -123,7 +118,7 @@ export class StrategyService {
       'Closing strategy',
     );
 
-    const vaultService = getVaultService(params.vaultContractId);
+    const vaultService = getVaultServiceForContract(params.vaultContractId);
     return vaultService.closePosition({
       agent: params.agentAddress,
       positionId: params.positionId,
