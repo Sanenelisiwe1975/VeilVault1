@@ -188,7 +188,7 @@ router.get('/history', async (req: Request, res: Response) => {
 
     // Build a synthetic time-series seeded from the anchor point going backwards
     const now    = Math.floor(Date.now() / 1000);
-    const series = [];
+    const series: { timestamp: number; date: string; totalAssets: string; sharePrice: string; yieldEarned: string }[] = [];
     const DAILY  = 86400;
 
     // Growth rate: ~8–15% APY → daily factor ≈ 1.0003
