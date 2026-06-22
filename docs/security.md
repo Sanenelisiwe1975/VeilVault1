@@ -44,6 +44,15 @@
 - `attest_performance` requires prover `require_auth()` — prover cannot be impersonated
 - Paused flag allows emergency halt of proof verification
 
+### Smart Wallet (`contracts/smart-wallet`)
+
+Soroban `CustomAccountInterface` implementation for passkey-based account abstraction.
+
+- `initialize(deployer, public_key)` requires `deployer.require_auth()`. Without this, anyone watching the network could race the legitimate deployer's follow-up call after `createCustomContract` and bind the wallet to their own public key before it does — the auth check closes that front-running window.
+- `__check_auth` rejects assertions missing the WebAuthn User Present flag, assertions whose `clientDataJSON` isn't `"type":"webauthn.get"`, and assertions whose embedded `challenge` doesn't match the `signature_payload` Soroban actually presented (anti-replay/anti-substitution) — all checked before the signature itself is verified.
+- Signature verification uses Soroban's native `secp256r1_verify`, which **traps on invalid input**, including non-low-S signatures. Browser-issued ECDSA signatures aren't guaranteed to be low-S, so any code relaying a WebAuthn signature into this contract must DER-decode and low-S-normalize it first (see the doc comment on `WebAuthnSignature` in `contracts/smart-wallet/src/lib.rs`).
+- Sign-in (`/api/auth/passkey/login/*`) verifies the assertion off-chain only, to issue a session JWT — it never touches the chain, so the low-S concern above doesn't apply to login. It only applies once passkey wallets can authorize real transactions (not yet implemented).
+
 ---
 
 ## Backend Security
@@ -89,3 +98,5 @@ Before mainnet deployment:
 - [ ] Penetration test of backend API (rate limits, auth bypass, SSRF)
 - [ ] Fuzzing of all contract entry points
 - [ ] Review of all `contractimport!` cross-contract calls
+- [ ] Pin `SMART_WALLET_WASM_HASH` to an already-audited upload rather than relying on the backend's first-registration auto-upload path
+- [ ] Implement and security-review DER-decode + low-S normalization before passkey wallets can authorize real transactions (currently sign-in only)
