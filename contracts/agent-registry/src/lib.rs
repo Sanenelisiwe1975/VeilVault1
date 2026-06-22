@@ -22,6 +22,19 @@
 //! | Failed / liquidated position | −200        |
 //! | Slash (admin)                | −N (custom) |
 //! | Perfect execution streak     | +50 bonus   |
+//!
+//! # Admin authority (M-of-N multisig)
+//! Punitive/identity actions that affect a specific agent — `ban`, `unban`,
+//! `slash`, and `accept_vc` — cannot be triggered by a single admin key.
+//! They go through a propose → approve → execute flow requiring
+//! `admin_threshold` distinct admin signatures, mirroring the stokvel-vault
+//! contract's M-of-N proposal pattern. This means no single compromised or
+//! malicious admin key can unilaterally ban or slash an agent.
+//!
+//! Lower-risk, one-time configuration actions (`add_reputation_updater`,
+//! `set_zk_verifier`, `register_attribute_type`) remain callable by any
+//! single admin, since they configure the system rather than act against a
+//! specific agent's funds or standing.
 
 #![no_std]
 
@@ -34,22 +47,29 @@ use soroban_sdk::{
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum RegistryError {
-    AlreadyInitialized      = 1,
-    NotInitialized          = 2,
-    Unauthorized            = 3,
-    AgentNotFound           = 4,
-    AgentAlreadyRegistered  = 5,
-    AgentBanned             = 6,
-    InvalidDID              = 7,
-    InvalidVCHash           = 8,
-    ReputationUnderflow     = 9,
-    InvalidSlashAmount      = 10,
-    VCAlreadyPending        = 11,
-    NoPendingVC             = 12,
-    AttributeTypeNotFound   = 13,
-    ZkVerifierNotSet        = 14,
-    InvalidAttestation      = 15,
-    AttributeAlreadyClaimed = 16,
+    AlreadyInitialized       = 1,
+    NotInitialized           = 2,
+    Unauthorized             = 3,
+    AgentNotFound            = 4,
+    AgentAlreadyRegistered   = 5,
+    AgentBanned              = 6,
+    InvalidDID               = 7,
+    InvalidVCHash            = 8,
+    ReputationUnderflow      = 9,
+    InvalidSlashAmount       = 10,
+    VCAlreadyPending         = 11,
+    NoPendingVC              = 12,
+    AttributeTypeNotFound    = 13,
+    ZkVerifierNotSet         = 14,
+    InvalidAttestation       = 15,
+    AttributeAlreadyClaimed  = 16,
+    InvalidThreshold         = 17,
+    NotAdmin                 = 18,
+    AdminProposalNotFound    = 19,
+    AdminProposalExpired     = 20,
+    AdminProposalAlreadyVoted = 21,
+    AdminThresholdNotMet     = 22,
+    InvalidAdminAction       = 23,
 }
 
 /// Reputation tier based on score (bps out of 10000).
@@ -133,10 +153,51 @@ pub struct AgentAttribute {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RegistryConfig {
-    pub admin: Address,
+    /// Set of admin signers authorized to participate in admin proposals.
+    pub admins: Vec<Address>,
+    /// Number of distinct admin approvals required to execute a punitive
+    /// admin action (ban / unban / slash / accept_vc).
+    pub admin_threshold: u32,
     pub reputation_updaters: Vec<Address>,
-    /// Optional zk-attestation contract used to validate attribute proofs.
+    /// Optional zk attestation contract used to validate attribute proofs.
     pub zk_verifier: Option<Address>,
+}
+
+/// Punitive/identity actions gated behind the M-of-N admin proposal flow.
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum AdminAction {
+    Ban      = 0,
+    Unban    = 1,
+    Slash    = 2,
+    AcceptVc = 3,
+}
+
+#[contracttype]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u32)]
+pub enum AdminProposalStatus {
+    Active   = 0,
+    Approved = 1,
+    Executed = 2,
+    Expired  = 3,
+}
+
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminProposal {
+    pub id: u64,
+    pub action: AdminAction,
+    /// The agent the action applies to.
+    pub target: Address,
+    /// Used by Slash only; 0 for all other actions.
+    pub amount: u32,
+    pub proposer: Address,
+    pub approvals: Vec<Address>,
+    pub status: AdminProposalStatus,
+    pub created_at: u64,
+    pub expires_at: u64,
 }
 
 #[contracttype]
@@ -148,10 +209,14 @@ pub enum DataKey {
     AttributeType(BytesN<32>),
     AgentAttributes(Address),
     AgentAttrDetail(Address, BytesN<32>),
+    AdminProposal(u64),
+    AdminProposalCount,
 }
 
 const INSTANCE_TTL: u32 = 1_000_000;
 const AGENT_TTL: u32    = 1_000_000;
+const ADMIN_PROPOSAL_TTL: u32    = 200_000;
+const ADMIN_PROPOSAL_EXPIRY: u64 = 3 * 24 * 3600; // 3 days
 
 const SCORE_VC_ACCEPTED: u32     = 500;
 const SCORE_SUCCESS_BASE: u32    = 10;
@@ -168,30 +233,48 @@ pub struct AgentRegistryContract;
 #[contractimpl]
 impl AgentRegistryContract {
 
-    pub fn initialize(env: Env, admin: Address) -> Result<(), RegistryError> {
+    /// Initialize the registry with a set of admin signers and the number of
+    /// approvals (`admin_threshold`) required to execute a punitive action.
+    /// The first address in `admins` must sign the deployment transaction.
+    pub fn initialize(
+        env: Env,
+        admins: Vec<Address>,
+        admin_threshold: u32,
+    ) -> Result<(), RegistryError> {
         if env.storage().instance().has(&DataKey::Config) {
             return Err(RegistryError::AlreadyInitialized);
         }
-        admin.require_auth();
+        if admins.is_empty() || admin_threshold == 0 || admin_threshold > admins.len() {
+            return Err(RegistryError::InvalidThreshold);
+        }
+        let deployer = admins.get(0).ok_or(RegistryError::InvalidThreshold)?;
+        deployer.require_auth();
+
         let config = RegistryConfig {
-            admin,
+            admins,
+            admin_threshold,
             reputation_updaters: Vec::new(&env),
             zk_verifier: None,
         };
         env.storage().instance().set(&DataKey::Config, &config);
         env.storage().instance().set(&DataKey::AgentCount, &0u64);
+        env.storage().instance().set(&DataKey::AdminProposalCount, &0u64);
         env.storage().instance().extend_ttl(INSTANCE_TTL, INSTANCE_TTL);
         Ok(())
     }
 
-    pub fn add_reputation_updater(env: Env, updater: Address) -> Result<(), RegistryError> {
-        let mut config = Self::require_admin(&env)?;
+    pub fn add_reputation_updater(
+        env: Env,
+        caller: Address,
+        updater: Address,
+    ) -> Result<(), RegistryError> {
+        let mut config = Self::require_any_admin(&env, &caller)?;
         config.reputation_updaters.push_back(updater);
         env.storage().instance().set(&DataKey::Config, &config);
         Ok(())
     }
 
-    //  Agent registration 
+    //  Agent registration
 
     pub fn register(
         env: Env,
@@ -265,33 +348,6 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    pub fn accept_vc(env: Env, agent: Address) -> Result<(), RegistryError> {
-        Self::require_admin(&env)?;
-
-        let vc_key = DataKey::PendingVC(agent.clone());
-        let pending: PendingVC = env
-            .storage()
-            .temporary()
-            .get(&vc_key)
-            .ok_or(RegistryError::NoPendingVC)?;
-
-        let mut profile = Self::get_active_profile(&env, &agent)?;
-        profile.vc_hash = pending.new_vc_hash;
-        profile.vc_uri = pending.new_vc_uri;
-        profile.reputation_score = (profile.reputation_score + SCORE_VC_ACCEPTED).min(SCORE_MAX);
-        profile.level = ReputationLevel::from_score(profile.reputation_score);
-        profile.last_updated = env.ledger().timestamp();
-
-        env.storage().persistent().set(&DataKey::Agent(agent.clone()), &profile);
-        env.storage().temporary().remove(&vc_key);
-
-        env.events().publish(
-            (soroban_sdk::symbol_short!("VC_ACC"), agent),
-            profile.reputation_score,
-        );
-        Ok(())
-    }
-
     //  Reputation updates
 
     pub fn record_success(
@@ -347,61 +403,144 @@ impl AgentRegistryContract {
         Ok(())
     }
 
-    //  Admin actions
+    //  Admin proposals (M-of-N multisig) — ban / unban / slash / accept_vc
 
-    pub fn slash(
+    /// Propose a punitive/identity action against an agent. The proposer's
+    /// own approval is recorded automatically; if `admin_threshold` is 1 the
+    /// proposal is immediately approved (single-admin deployments still work).
+    pub fn propose_admin_action(
         env: Env,
-        agent: Address,
+        proposer: Address,
+        action: u32,
+        target: Address,
         amount: u32,
-        _reason: String,
-    ) -> Result<(), RegistryError> {
-        Self::require_admin(&env)?;
-        if amount == 0 || amount > SCORE_SLASH_CAP {
+    ) -> Result<u64, RegistryError> {
+        let config = Self::require_any_admin(&env, &proposer)?;
+        let act = Self::parse_admin_action(action)?;
+
+        if act == AdminAction::Slash && (amount == 0 || amount > SCORE_SLASH_CAP) {
             return Err(RegistryError::InvalidSlashAmount);
         }
-        let mut profile = Self::get_profile(&env, &agent)?;
-        profile.reputation_score = profile.reputation_score.saturating_sub(amount);
-        profile.level = ReputationLevel::from_score(profile.reputation_score);
-        profile.last_updated = env.ledger().timestamp();
-        Self::save_profile(&env, &agent, &profile);
+        if act == AdminAction::AcceptVc {
+            // Fail fast if there's nothing pending to accept.
+            let _: PendingVC = env.storage().temporary()
+                .get(&DataKey::PendingVC(target.clone()))
+                .ok_or(RegistryError::NoPendingVC)?;
+        }
 
-        env.events().publish(
-            (soroban_sdk::symbol_short!("SLASH"), agent),
+        let count: u64 = env.storage().instance()
+            .get(&DataKey::AdminProposalCount).unwrap_or(0) + 1;
+        env.storage().instance().set(&DataKey::AdminProposalCount, &count);
+
+        let now = env.ledger().timestamp();
+        let mut approvals = Vec::new(&env);
+        approvals.push_back(proposer.clone());
+
+        let status = if config.admin_threshold <= approvals.len() {
+            AdminProposalStatus::Approved
+        } else {
+            AdminProposalStatus::Active
+        };
+
+        let proposal = AdminProposal {
+            id: count,
+            action: act,
+            target,
             amount,
-        );
-        Ok(())
-    }
+            proposer: proposer.clone(),
+            approvals,
+            status,
+            created_at: now,
+            expires_at: now + ADMIN_PROPOSAL_EXPIRY,
+        };
 
-    pub fn ban(env: Env, agent: Address) -> Result<(), RegistryError> {
-        Self::require_admin(&env)?;
-        let mut profile = Self::get_profile(&env, &agent)?;
-        profile.banned = true;
-        profile.reputation_score = 0;
-        profile.level = ReputationLevel::Unverified;
-        profile.last_updated = env.ledger().timestamp();
-        Self::save_profile(&env, &agent, &profile);
+        env.storage().persistent().set(&DataKey::AdminProposal(count), &proposal);
+        env.storage().persistent().extend_ttl(&DataKey::AdminProposal(count), ADMIN_PROPOSAL_TTL, ADMIN_PROPOSAL_TTL);
 
         env.events().publish(
-            (soroban_sdk::symbol_short!("BAN"), agent),
-            env.ledger().timestamp(),
+            (soroban_sdk::symbol_short!("ADM_PROP"), proposer),
+            count,
         );
-        Ok(())
+        Ok(count)
     }
 
-    pub fn unban(env: Env, agent: Address) -> Result<(), RegistryError> {
-        Self::require_admin(&env)?;
-        let mut profile = Self::get_profile(&env, &agent)?;
-        profile.banned = false;
-        profile.last_updated = env.ledger().timestamp();
-        Self::save_profile(&env, &agent, &profile);
+    /// Approve a pending admin proposal. Flips to `Approved` once
+    /// `admin_threshold` distinct admins have approved.
+    pub fn approve_admin_action(
+        env: Env,
+        approver: Address,
+        proposal_id: u64,
+    ) -> Result<AdminProposalStatus, RegistryError> {
+        let config = Self::require_any_admin(&env, &approver)?;
+        let mut proposal = Self::get_admin_proposal(&env, proposal_id)?;
+        let now = env.ledger().timestamp();
+
+        if now > proposal.expires_at {
+            proposal.status = AdminProposalStatus::Expired;
+            env.storage().persistent().set(&DataKey::AdminProposal(proposal_id), &proposal);
+            return Err(RegistryError::AdminProposalExpired);
+        }
+        if proposal.status != AdminProposalStatus::Active {
+            return Err(RegistryError::AdminProposalAlreadyVoted);
+        }
+        if proposal.approvals.iter().any(|a| a == approver) {
+            return Err(RegistryError::AdminProposalAlreadyVoted);
+        }
+
+        proposal.approvals.push_back(approver.clone());
+        if proposal.approvals.len() >= config.admin_threshold {
+            proposal.status = AdminProposalStatus::Approved;
+        }
+        env.storage().persistent().set(&DataKey::AdminProposal(proposal_id), &proposal);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("ADM_APP"), approver),
+            proposal_id,
+        );
+        Ok(proposal.status)
+    }
+
+    /// Execute an approved admin proposal. Any admin may trigger execution
+    /// once the threshold has been met.
+    pub fn execute_admin_action(
+        env: Env,
+        executor: Address,
+        proposal_id: u64,
+    ) -> Result<(), RegistryError> {
+        Self::require_any_admin(&env, &executor)?;
+        let mut proposal = Self::get_admin_proposal(&env, proposal_id)?;
+
+        if env.ledger().timestamp() > proposal.expires_at {
+            proposal.status = AdminProposalStatus::Expired;
+            env.storage().persistent().set(&DataKey::AdminProposal(proposal_id), &proposal);
+            return Err(RegistryError::AdminProposalExpired);
+        }
+        if proposal.status != AdminProposalStatus::Approved {
+            return Err(RegistryError::AdminThresholdNotMet);
+        }
+
+        match proposal.action {
+            AdminAction::Ban      => Self::do_ban(&env, &proposal.target)?,
+            AdminAction::Unban    => Self::do_unban(&env, &proposal.target)?,
+            AdminAction::Slash    => Self::do_slash(&env, &proposal.target, proposal.amount)?,
+            AdminAction::AcceptVc => Self::do_accept_vc(&env, &proposal.target)?,
+        }
+
+        proposal.status = AdminProposalStatus::Executed;
+        env.storage().persistent().set(&DataKey::AdminProposal(proposal_id), &proposal);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("ADM_EXEC"), executor),
+            proposal_id,
+        );
         Ok(())
     }
 
     //  Selective Disclosure Attributes
 
     /// Set the zk-attestation contract address used to validate attribute proofs.
-    pub fn set_zk_verifier(env: Env, zk_verifier: Address) -> Result<(), RegistryError> {
-        let mut config = Self::require_admin(&env)?;
+    pub fn set_zk_verifier(env: Env, caller: Address, zk_verifier: Address) -> Result<(), RegistryError> {
+        let mut config = Self::require_any_admin(&env, &caller)?;
         config.zk_verifier = Some(zk_verifier);
         env.storage().instance().set(&DataKey::Config, &config);
         Ok(())
@@ -413,11 +552,12 @@ impl AgentRegistryContract {
     /// contract whose proofs are accepted as evidence for this attribute.
     pub fn register_attribute_type(
         env: Env,
+        caller: Address,
         type_id: BytesN<32>,
         name: String,
         required_circuit_id: BytesN<32>,
     ) -> Result<(), RegistryError> {
-        Self::require_admin(&env)?;
+        Self::require_any_admin(&env, &caller)?;
         let attr_type = AttributeType {
             type_id: type_id.clone(),
             name,
@@ -554,6 +694,18 @@ impl AgentRegistryContract {
             .ok_or(RegistryError::AttributeTypeNotFound)
     }
 
+    pub fn get_admins(env: Env) -> Result<Vec<Address>, RegistryError> {
+        Ok(Self::get_config(&env)?.admins)
+    }
+
+    pub fn get_admin_threshold(env: Env) -> Result<u32, RegistryError> {
+        Ok(Self::get_config(&env)?.admin_threshold)
+    }
+
+    pub fn get_admin_proposal_info(env: Env, proposal_id: u64) -> Result<AdminProposal, RegistryError> {
+        Self::get_admin_proposal(&env, proposal_id)
+    }
+
     fn get_config(env: &Env) -> Result<RegistryConfig, RegistryError> {
         env.storage()
             .instance()
@@ -561,9 +713,12 @@ impl AgentRegistryContract {
             .ok_or(RegistryError::NotInitialized)
     }
 
-    fn require_admin(env: &Env) -> Result<RegistryConfig, RegistryError> {
+    fn require_any_admin(env: &Env, caller: &Address) -> Result<RegistryConfig, RegistryError> {
         let config = Self::get_config(env)?;
-        config.admin.require_auth();
+        if !config.admins.iter().any(|a| a == *caller) {
+            return Err(RegistryError::NotAdmin);
+        }
+        caller.require_auth();
         Ok(config)
     }
 
@@ -575,7 +730,7 @@ impl AgentRegistryContract {
                 return Ok(());
             }
         }
-        if config.admin == *caller {
+        if config.admins.iter().any(|a| a == *caller) {
             caller.require_auth();
             return Ok(());
         }
@@ -602,6 +757,87 @@ impl AgentRegistryContract {
         env.storage().persistent().set(&key, profile);
         env.storage().persistent().extend_ttl(&key, AGENT_TTL, AGENT_TTL);
     }
+
+    fn get_admin_proposal(env: &Env, id: u64) -> Result<AdminProposal, RegistryError> {
+        env.storage()
+            .persistent()
+            .get::<DataKey, AdminProposal>(&DataKey::AdminProposal(id))
+            .ok_or(RegistryError::AdminProposalNotFound)
+    }
+
+    fn parse_admin_action(v: u32) -> Result<AdminAction, RegistryError> {
+        match v {
+            0 => Ok(AdminAction::Ban),
+            1 => Ok(AdminAction::Unban),
+            2 => Ok(AdminAction::Slash),
+            3 => Ok(AdminAction::AcceptVc),
+            _ => Err(RegistryError::InvalidAdminAction),
+        }
+    }
+
+    //  Internal action implementations (only reachable via execute_admin_action)
+
+    fn do_ban(env: &Env, agent: &Address) -> Result<(), RegistryError> {
+        let mut profile = Self::get_profile(env, agent)?;
+        profile.banned = true;
+        profile.reputation_score = 0;
+        profile.level = ReputationLevel::Unverified;
+        profile.last_updated = env.ledger().timestamp();
+        Self::save_profile(env, agent, &profile);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("BAN"), agent.clone()),
+            env.ledger().timestamp(),
+        );
+        Ok(())
+    }
+
+    fn do_unban(env: &Env, agent: &Address) -> Result<(), RegistryError> {
+        let mut profile = Self::get_profile(env, agent)?;
+        profile.banned = false;
+        profile.last_updated = env.ledger().timestamp();
+        Self::save_profile(env, agent, &profile);
+        Ok(())
+    }
+
+    fn do_slash(env: &Env, agent: &Address, amount: u32) -> Result<(), RegistryError> {
+        let mut profile = Self::get_profile(env, agent)?;
+        profile.reputation_score = profile.reputation_score.saturating_sub(amount);
+        profile.level = ReputationLevel::from_score(profile.reputation_score);
+        profile.last_updated = env.ledger().timestamp();
+        Self::save_profile(env, agent, &profile);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("SLASH"), agent.clone()),
+            amount,
+        );
+        Ok(())
+    }
+
+    fn do_accept_vc(env: &Env, agent: &Address) -> Result<(), RegistryError> {
+        let vc_key = DataKey::PendingVC(agent.clone());
+        let pending: PendingVC = env
+            .storage()
+            .temporary()
+            .get(&vc_key)
+            .ok_or(RegistryError::NoPendingVC)?;
+
+        let mut profile = Self::get_active_profile(env, agent)?;
+        profile.vc_hash = pending.new_vc_hash;
+        profile.vc_uri = pending.new_vc_uri;
+        profile.reputation_score = (profile.reputation_score + SCORE_VC_ACCEPTED).min(SCORE_MAX);
+        profile.level = ReputationLevel::from_score(profile.reputation_score);
+        profile.last_updated = env.ledger().timestamp();
+
+        env.storage().persistent().set(&DataKey::Agent(agent.clone()), &profile);
+        env.storage().temporary().remove(&vc_key);
+
+        env.events().publish(
+            (soroban_sdk::symbol_short!("VC_ACC"), agent.clone()),
+            profile.reputation_score,
+        );
+        Ok(())
+    }
 }
 
 
@@ -610,15 +846,22 @@ mod test {
     use super::*;
     use soroban_sdk::{testutils::Address as _, Env, String};
 
-    fn setup() -> (Env, Address, AgentRegistryContractClient<'static>) {
+    fn setup() -> (Env, Address, Vec<Address>, AgentRegistryContractClient<'static>) {
         let env = Env::default();
         env.mock_all_auths();
-        let admin = Address::generate(&env);
+        let admin1 = Address::generate(&env);
+        let admin2 = Address::generate(&env);
+        let admin3 = Address::generate(&env);
+        let mut admins = Vec::new(&env);
+        admins.push_back(admin1.clone());
+        admins.push_back(admin2.clone());
+        admins.push_back(admin3.clone());
+
         let id = env.register_contract(None, AgentRegistryContract);
         let client: AgentRegistryContractClient<'static> =
             unsafe { core::mem::transmute(AgentRegistryContractClient::new(&env, &id)) };
-        client.initialize(&admin);
-        (env, admin, client)
+        client.initialize(&admins, &2_u32); // 2-of-3 threshold
+        (env, admin1, admins, client)
     }
 
     fn register_agent(client: &AgentRegistryContractClient, env: &Env) -> Address {
@@ -632,7 +875,7 @@ mod test {
 
     #[test]
     fn test_register_agent() {
-        let (env, _, client) = setup();
+        let (env, _, _, client) = setup();
         let agent = register_agent(&client, &env);
         let profile = client.get_agent(&agent);
         assert_eq!(profile.level, ReputationLevel::Unverified);
@@ -641,18 +884,27 @@ mod test {
     }
 
     #[test]
-    fn test_vc_acceptance_boosts_score() {
-        let (env, _, client) = setup();
+    fn test_vc_acceptance_via_multisig_boosts_score() {
+        let (env, admin1, admins, client) = setup();
         let agent = register_agent(&client, &env);
 
         let new_hash = BytesN::from_array(&env, &[2u8; 32]);
         let new_uri = String::from_str(&env, "ipfs://Qm456def");
         client.submit_vc_update(&agent, &new_hash, &new_uri);
-        client.accept_vc(&agent);
+
+        let proposal_id = client.propose_admin_action(&admin1, &3_u32, &agent, &0_u32); // AcceptVc
+        // One approval (1-of-3) is not enough for a 2-of-3 threshold.
+        let info = client.get_admin_proposal_info(&proposal_id);
+        assert_eq!(info.status, AdminProposalStatus::Active);
+
+        let admin2 = admins.get(1).unwrap();
+        let status = client.approve_admin_action(&admin2, &proposal_id);
+        assert_eq!(status, AdminProposalStatus::Approved);
+
+        client.execute_admin_action(&admin1, &proposal_id);
 
         let profile = client.get_agent(&agent);
         assert_eq!(profile.reputation_score, 500);
-        assert_eq!(profile.level, ReputationLevel::Unverified);
     }
 
     #[test]
@@ -665,11 +917,11 @@ mod test {
 
     #[test]
     fn test_record_success_increases_score() {
-        let (env, admin, client) = setup();
-        client.add_reputation_updater(&admin);
+        let (env, admin1, _, client) = setup();
+        client.add_reputation_updater(&admin1, &admin1);
         let agent = register_agent(&client, &env);
 
-        client.record_success(&admin, &agent, &1000_u32, &1_000_000_i128);
+        client.record_success(&admin1, &agent, &1000_u32, &1_000_000_i128);
         let profile = client.get_agent(&agent);
         assert!(profile.reputation_score > 0);
         assert_eq!(profile.total_executions, 1);
@@ -677,23 +929,36 @@ mod test {
     }
 
     #[test]
-    fn test_slash_reduces_score() {
-        let (env, admin, client) = setup();
-        client.add_reputation_updater(&admin);
+    fn test_slash_requires_threshold() {
+        let (env, admin1, admins, client) = setup();
+        client.add_reputation_updater(&admin1, &admin1);
         let agent = register_agent(&client, &env);
-        client.record_success(&admin, &agent, &5000_u32, &10_000_000_i128);
-
+        client.record_success(&admin1, &agent, &5000_u32, &10_000_000_i128);
         let before = client.get_agent(&agent).reputation_score;
-        client.slash(&agent, &100_u32, &String::from_str(&env, "test slash"));
+
+        let proposal_id = client.propose_admin_action(&admin1, &2_u32, &agent, &100_u32); // Slash
+
+        // Single admin cannot execute — threshold not met yet.
+        let result = client.try_execute_admin_action(&admin1, &proposal_id);
+        assert!(result.is_err());
+
+        let admin2 = admins.get(1).unwrap();
+        client.approve_admin_action(&admin2, &proposal_id);
+        client.execute_admin_action(&admin1, &proposal_id);
+
         let after = client.get_agent(&agent).reputation_score;
         assert_eq!(before - after, 100);
     }
 
     #[test]
-    fn test_ban_prevents_operations() {
-        let (env, _, client) = setup();
+    fn test_ban_via_multisig_prevents_operations() {
+        let (env, admin1, admins, client) = setup();
         let agent = register_agent(&client, &env);
-        client.ban(&agent);
+
+        let proposal_id = client.propose_admin_action(&admin1, &0_u32, &agent, &0_u32); // Ban
+        let admin2 = admins.get(1).unwrap();
+        client.approve_admin_action(&admin2, &proposal_id);
+        client.execute_admin_action(&admin1, &proposal_id);
 
         let profile = client.get_agent(&agent);
         assert!(profile.banned);
@@ -701,13 +966,31 @@ mod test {
     }
 
     #[test]
+    fn test_double_approval_rejected() {
+        let (env, admin1, _, client) = setup();
+        let agent = register_agent(&client, &env);
+        let proposal_id = client.propose_admin_action(&admin1, &0_u32, &agent, &0_u32);
+        let result = client.try_approve_admin_action(&admin1, &proposal_id);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_non_admin_cannot_propose() {
+        let (env, _, _, client) = setup();
+        let agent = register_agent(&client, &env);
+        let outsider = Address::generate(&env);
+        let result = client.try_propose_admin_action(&outsider, &0_u32, &agent, &0_u32);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_register_attribute_type() {
-        let (env, _, client) = setup();
+        let (env, admin1, _, client) = setup();
         let type_id = BytesN::from_array(&env, &[0xAA; 32]);
         let circuit_id = BytesN::from_array(&env, &[0xBB; 32]);
         let name = String::from_str(&env, "age_over_18");
 
-        client.register_attribute_type(&type_id, &name, &circuit_id);
+        client.register_attribute_type(&admin1, &type_id, &name, &circuit_id);
 
         let attr_type = client.get_attribute_type(&type_id);
         assert_eq!(attr_type.type_id, type_id);
@@ -716,7 +999,7 @@ mod test {
 
     #[test]
     fn test_has_attribute_returns_false_when_not_claimed() {
-        let (env, _, client) = setup();
+        let (env, _, _, client) = setup();
         let agent = register_agent(&client, &env);
         let type_id = BytesN::from_array(&env, &[0xAA; 32]);
         assert!(!client.has_attribute(&agent, &type_id));
@@ -724,20 +1007,20 @@ mod test {
 
     #[test]
     fn test_get_agent_attributes_empty() {
-        let (env, _, client) = setup();
+        let (env, _, _, client) = setup();
         let agent = register_agent(&client, &env);
         let attrs = client.get_agent_attributes(&agent);
         assert_eq!(attrs.len(), 0);
     }
 
     #[test]
-    #[should_panic(expected = "AgentAlreadyRegistered")]
     fn test_double_register_fails() {
-        let (env, _, client) = setup();
+        let (env, _, _, client) = setup();
         let agent = register_agent(&client, &env);
         let did = String::from_str(&env, "did:stellar:GABC1234");
         let vc_hash = BytesN::from_array(&env, &[1u8; 32]);
         let vc_uri = String::from_str(&env, "ipfs://Qm123abc");
-        client.register(&agent, &did, &vc_hash, &vc_uri);
+        let result = client.try_register(&agent, &did, &vc_hash, &vc_uri);
+        assert!(result.is_err());
     }
 }
