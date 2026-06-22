@@ -136,7 +136,7 @@ export class StokvelService {
     amount: bigint;
     proposerSecret: string;
   }): Promise<bigint> {
-    const result = await this.stellar.invokeContract(
+    const { result } = await this.stellar.invokeContract(
       this.contractId,
       'propose',
       [
@@ -147,7 +147,8 @@ export class StokvelService {
       ],
       params.proposerSecret
     );
-    return BigInt(scValToNative(result as Parameters<typeof scValToNative>[0]) as string);
+    if (!result) throw new Error('No return value from propose call');
+    return BigInt(scValToNative(result) as string);
   }
 
   async voteProposal(params: {
