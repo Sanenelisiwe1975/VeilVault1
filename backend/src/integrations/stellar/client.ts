@@ -1,14 +1,10 @@
 import {
   Contract,
   Keypair,
-  Networks,
   rpc as StellarRpc,
   TransactionBuilder,
   BASE_FEE,
   xdr,
-  Address,
-  scVal,
-  nativeToScVal,
 } from '@stellar/stellar-sdk';
 import { config, STELLAR_NETWORKS } from '../../config';
 import { createChildLogger } from '../../utils/logger';
@@ -111,7 +107,7 @@ export class StellarClient {
     let resultVal: xdr.ScVal | null = null;
     if (confirmed.status === 'SUCCESS' && confirmed.resultMetaXdr) {
       try {
-        const meta = xdr.TransactionMeta.fromXDR(confirmed.resultMetaXdr, 'base64');
+        const meta = confirmed.resultMetaXdr;
         if (meta.v3().sorobanMeta()?.returnValue()) {
           resultVal = meta.v3().sorobanMeta()!.returnValue();
         }
@@ -136,15 +132,43 @@ export class StellarClient {
     throw new Error(`Transaction ${txHash} not confirmed within ${timeoutMs}ms`);
   }
 
-  /** Read-only call (simulation only, no submission). */
+  /**
+   * Read-only call (simulation only, no submission).
+   *
+   * Accepts both the typed object form:
+   *   callView({ contractId, method, args, callerPublicKey, decode })
+   * and the legacy positional form used by many service files, which returns
+   * the raw ScVal for the caller to decode with scValToNative:
+   *   callView(contractId, method, args)
+   */
   async callView<T>(params: {
     contractId: string;
     method: string;
     args: xdr.ScVal[];
     callerPublicKey: string;
     decode: (val: xdr.ScVal) => T;
-  }): Promise<T> {
-    const { contractId, method, args, callerPublicKey, decode } = params;
+  }): Promise<T>;
+  async callView(contractId: string, method: string, args: xdr.ScVal[]): Promise<xdr.ScVal>;
+  async callView<T>(
+    paramsOrContractId:
+      | { contractId: string; method: string; args: xdr.ScVal[]; callerPublicKey: string; decode: (val: xdr.ScVal) => T }
+      | string,
+    legacyMethod?: string,
+    legacyArgs?: xdr.ScVal[],
+  ): Promise<T | xdr.ScVal> {
+    let contractId: string, method: string, args: xdr.ScVal[], callerPublicKey: string;
+    let decode: (val: xdr.ScVal) => T | xdr.ScVal;
+
+    if (typeof paramsOrContractId === 'string') {
+      contractId = paramsOrContractId;
+      method = legacyMethod!;
+      args = legacyArgs ?? [];
+      callerPublicKey = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
+      decode = (val) => val;
+    } else {
+      ({ contractId, method, args, callerPublicKey, decode } = paramsOrContractId);
+    }
+
     const account = await this.loadAccount(callerPublicKey);
 
     const tx = new TransactionBuilder(account, {
