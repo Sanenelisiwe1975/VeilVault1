@@ -64,9 +64,10 @@ cargo build --release --target wasm32-unknown-unknown -p strategy-marketplace
 cargo build --release --target wasm32-unknown-unknown -p stokvel-vault
 cargo build --release --target wasm32-unknown-unknown -p zk-attestation
 cargo build --release --target wasm32-unknown-unknown -p privacy-pool
+cargo build --release --target wasm32-unknown-unknown -p passkey-registry
 
 # Optimize WASM binaries
-for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation privacy_pool; do
+for contract in vault x402_verifier dwallet_verifier agent_registry strategy_marketplace stokvel_vault zk_attestation privacy_pool passkey_registry; do
   WASM="target/wasm32-unknown-unknown/release/${contract}.wasm"
   if command -v stellar &>/dev/null; then
     stellar contract optimize --wasm "$WASM" 2>/dev/null || warn "Optimize skipped for $contract"
@@ -272,6 +273,24 @@ else
   warn "  -- set_verifier --zk_verifier $ZK_ID --withdraw_circuit_id <CIRCUIT_ID>"
 fi
 
+# Deploy passkey-registry (durable credential -> smart-wallet index, used by
+# the passkey/account-abstraction sign-in option)
+info "Deploying passkey-registry..."
+PASSKEY_REGISTRY_ID=$(stellar contract deploy \
+  --wasm "target/wasm32-unknown-unknown/release/passkey_registry.optimized.wasm" \
+  --source admin \
+  --network "$NETWORK" \
+  --ignore-checks)
+info "passkey-registry deployed: $PASSKEY_REGISTRY_ID"
+
+stellar contract invoke \
+  --id "$PASSKEY_REGISTRY_ID" \
+  --source admin \
+  --network "$NETWORK" \
+  -- initialize \
+  --admin "$ADMIN_PK"
+info "passkey-registry initialized."
+
 # Write contract IDs to .env
 info "Updating .env with deployed contract IDs..."
 ENV_FILE="$REPO_ROOT/.env"
@@ -294,6 +313,7 @@ update_env "STRATEGY_MARKETPLACE_CONTRACT_ID" "$MARKETPLACE_ID"
 update_env "STOKVEL_REGISTRY_CONTRACT_ID" "$STOKVEL_ID"
 update_env "ZK_VERIFIER_CONTRACT_ID" "$ZK_ID"
 update_env "PRIVACY_POOL_CONTRACT_ID" "$POOL_ID"
+update_env "PASSKEY_REGISTRY_CONTRACT_ID" "$PASSKEY_REGISTRY_ID"
 # WITHDRAW_CIRCUIT_ID is set separately after running: cd prover && cargo run -- setup
 
 echo ""
