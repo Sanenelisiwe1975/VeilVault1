@@ -9,6 +9,7 @@ members = [
     "zk-attestation",
     "privacy-pool",
     "smart-wallet",
+    "passkey-registry",
 ]
 resolver = "2"
 
