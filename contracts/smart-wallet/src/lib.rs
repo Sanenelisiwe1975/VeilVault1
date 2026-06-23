@@ -28,6 +28,18 @@
 //! No on-chain JSON parser is needed — `clientDataJSON` is a small, known
 //! shape, so a byte substring search for the expected challenge/type fields
 //! is sufficient and avoids pulling in a no_std JSON crate.
+//!
+//! # Multiple signers (recovery)
+//! A wallet isn't limited to one passkey. `add_signer` / `remove_signer` let
+//! a user register a backup passkey (a second device, or a recovery
+//! authenticator kept somewhere safe) so losing one device doesn't mean
+//! losing the wallet. Both require the wallet's own `require_auth()` —
+//! satisfied by a WebAuthn assertion from an *already-registered* signer —
+//! so only someone who already controls the wallet can add or remove a
+//! signer. `WebAuthnSignature::signer_index` tells `__check_auth` which
+//! registered key the assertion claims to be signed by (the contract can't
+//! try every key in turn: `secp256r1_verify` traps on mismatch instead of
+//! returning a bool, so there's no cheap way to "try them all").
 #![no_std]
 #[cfg(test)]
 extern crate std;
@@ -43,17 +55,21 @@ use soroban_sdk::{
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
 pub enum WalletError {
-    AlreadyInitialized = 1,
-    NotInitialized     = 2,
-    InvalidPublicKey   = 3,
-    ChallengeMismatch  = 4,
-    NotWebAuthnGet     = 5,
-    UserNotPresent     = 6,
+    AlreadyInitialized   = 1,
+    NotInitialized        = 2,
+    InvalidPublicKey       = 3,
+    ChallengeMismatch       = 4,
+    NotWebAuthnGet           = 5,
+    UserNotPresent            = 6,
+    InvalidSignerIndex          = 7,
+    SignerAlreadyExists           = 8,
+    TooManySigners                  = 9,
+    CannotRemoveLastSigner            = 10,
 }
 
 #[contracttype]
 pub enum DataKey {
-    PublicKey,
+    Signers,
 }
 
 /// A WebAuthn assertion, passed as the `Signature` associated type for
@@ -68,6 +84,9 @@ pub enum DataKey {
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WebAuthnSignature {
+    /// Index into the wallet's registered signers list (`get_signers`) that
+    /// this assertion claims to be signed by.
+    pub signer_index: u32,
     /// Raw `authenticatorData` from the assertion.
     pub authenticator_data: Bytes,
     /// Raw `clientDataJSON` from the assertion (UTF-8 JSON bytes).
@@ -77,6 +96,7 @@ pub struct WebAuthnSignature {
 }
 
 const FLAG_USER_PRESENT: u8 = 0x01;
+const MAX_SIGNERS: u32 = 5;
 
 #[contract]
 pub struct SmartWalletContract;
@@ -84,31 +104,81 @@ pub struct SmartWalletContract;
 #[contractimpl]
 impl SmartWalletContract {
     /// One-time setup: bind this wallet contract to a passkey's SEC1
-    /// uncompressed public key (0x04 || X(32) || Y(32), 65 bytes total).
+    /// uncompressed public key (0x04 || X(32) || Y(32), 65 bytes total) as
+    /// its first (and initially only) signer.
     ///
     /// `deployer` must be the same address that paid for `createCustomContract`
     /// and must sign this call. Without this check, anyone watching the
     /// network could race the legitimate deployer's follow-up `initialize`
     /// call and bind the wallet to their own public key instead.
     pub fn initialize(env: Env, deployer: Address, public_key: BytesN<65>) -> Result<(), WalletError> {
-        if env.storage().instance().has(&DataKey::PublicKey) {
+        if env.storage().instance().has(&DataKey::Signers) {
             return Err(WalletError::AlreadyInitialized);
         }
         deployer.require_auth();
-        let key_bytes = public_key.to_array();
-        if key_bytes[0] != 0x04 {
-            return Err(WalletError::InvalidPublicKey);
-        }
-        env.storage().instance().set(&DataKey::PublicKey, &public_key);
+        validate_signer_key(&public_key)?;
+
+        let mut signers = Vec::new(&env);
+        signers.push_back(public_key);
+        env.storage().instance().set(&DataKey::Signers, &signers);
         env.storage().instance().extend_ttl(1_000_000, 1_000_000);
         Ok(())
     }
 
-    pub fn get_public_key(env: Env) -> Result<BytesN<65>, WalletError> {
+    pub fn get_signers(env: Env) -> Result<Vec<BytesN<65>>, WalletError> {
         env.storage()
             .instance()
-            .get(&DataKey::PublicKey)
+            .get(&DataKey::Signers)
             .ok_or(WalletError::NotInitialized)
+    }
+
+    /// Register a backup passkey. Requires the wallet's own auth — i.e. a
+    /// valid WebAuthn assertion from a signer that's already registered —
+    /// so only someone who already controls the wallet can add another key.
+    pub fn add_signer(env: Env, new_signer: BytesN<65>) -> Result<(), WalletError> {
+        env.current_contract_address().require_auth();
+        validate_signer_key(&new_signer)?;
+
+        let mut signers: Vec<BytesN<65>> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .ok_or(WalletError::NotInitialized)?;
+
+        if signers.iter().any(|s| s == new_signer) {
+            return Err(WalletError::SignerAlreadyExists);
+        }
+        if signers.len() >= MAX_SIGNERS {
+            return Err(WalletError::TooManySigners);
+        }
+
+        signers.push_back(new_signer);
+        env.storage().instance().set(&DataKey::Signers, &signers);
+        Ok(())
+    }
+
+    /// Remove a signer by index (see `get_signers`). Same auth requirement
+    /// as `add_signer`. Always leaves at least one signer — a wallet can
+    /// never be left with zero ways to authorize itself.
+    pub fn remove_signer(env: Env, signer_index: u32) -> Result<(), WalletError> {
+        env.current_contract_address().require_auth();
+
+        let mut signers: Vec<BytesN<65>> = env
+            .storage()
+            .instance()
+            .get(&DataKey::Signers)
+            .ok_or(WalletError::NotInitialized)?;
+
+        if signer_index >= signers.len() {
+            return Err(WalletError::InvalidSignerIndex);
+        }
+        if signers.len() <= 1 {
+            return Err(WalletError::CannotRemoveLastSigner);
+        }
+
+        signers.remove(signer_index);
+        env.storage().instance().set(&DataKey::Signers, &signers);
+        Ok(())
     }
 }
 
@@ -123,11 +193,14 @@ impl CustomAccountInterface for SmartWalletContract {
         signature: WebAuthnSignature,
         _auth_contexts: Vec<Context>,
     ) -> Result<(), WalletError> {
-        let public_key: BytesN<65> = env
+        let signers: Vec<BytesN<65>> = env
             .storage()
             .instance()
-            .get(&DataKey::PublicKey)
+            .get(&DataKey::Signers)
             .ok_or(WalletError::NotInitialized)?;
+        let public_key = signers
+            .get(signature.signer_index)
+            .ok_or(WalletError::InvalidSignerIndex)?;
 
         // 1. The authenticator must report the user was present for this assertion.
         let auth_data_len = signature.authenticator_data.len();
@@ -169,6 +242,13 @@ impl CustomAccountInterface for SmartWalletContract {
 }
 
 // ── Helpers (no_std, no extra crates) ──────────────────────────────────────
+
+fn validate_signer_key(public_key: &BytesN<65>) -> Result<(), WalletError> {
+    if public_key.to_array()[0] != 0x04 {
+        return Err(WalletError::InvalidPublicKey);
+    }
+    Ok(())
+}
 
 fn json_field(env: &Env, literal: &[u8]) -> Bytes {
     Bytes::from_slice(env, literal)
@@ -245,19 +325,23 @@ mod test {
 
     struct Fixture {
         env: Env,
-        signing_key: SigningKey,
+        signing_keys: std::vec::Vec<SigningKey>,
         client: SmartWalletContractClient<'static>,
         deployer: Address,
+    }
+
+    fn new_p256_keypair(env: &Env) -> (SigningKey, BytesN<65>) {
+        let signing_key = SigningKey::random(&mut OsRng);
+        let verifying_key = signing_key.verifying_key();
+        let point = verifying_key.to_encoded_point(false);
+        let pub_bytes: [u8; 65] = point.as_bytes().try_into().unwrap();
+        (signing_key, BytesN::from_array(env, &pub_bytes))
     }
 
     fn setup() -> Fixture {
         let env = Env::default();
         env.mock_all_auths();
-        let signing_key = SigningKey::random(&mut OsRng);
-        let verifying_key = signing_key.verifying_key();
-        let point = verifying_key.to_encoded_point(false);
-        let pub_bytes: [u8; 65] = point.as_bytes().try_into().unwrap();
-        let public_key = BytesN::from_array(&env, &pub_bytes);
+        let (signing_key, public_key) = new_p256_keypair(&env);
         let deployer = Address::generate(&env);
 
         let contract_id = env.register(SmartWalletContract, ());
@@ -265,12 +349,12 @@ mod test {
             unsafe { core::mem::transmute(SmartWalletContractClient::new(&env, &contract_id)) };
         client.initialize(&deployer, &public_key);
 
-        Fixture { env, signing_key, client, deployer }
+        Fixture { env, signing_keys: std::vec![signing_key], client, deployer }
     }
 
     /// Builds a real WebAuthn-shaped assertion over `challenge_payload`,
-    /// signed with the fixture's passkey.
-    fn make_assertion(f: &Fixture, challenge_payload: &[u8; 32], flags: u8) -> WebAuthnSignature {
+    /// signed with the fixture's signer at `signer_index`.
+    fn make_assertion(f: &Fixture, signer_index: u32, challenge_payload: &[u8; 32], flags: u8) -> WebAuthnSignature {
         let challenge_b64 = std_base64url(challenge_payload);
         let client_data_json = alloc_format(&challenge_b64, true);
 
@@ -289,11 +373,13 @@ mod test {
         // Soroban's secp256r1_verify requires strict low-S normalized
         // signatures; raw ECDSA output (and real WebAuthn authenticators)
         // are not guaranteed to be low-S, so callers must normalize.
-        let sig: Signature = f.signing_key.sign_prehash(&digest).unwrap();
+        let signing_key = &f.signing_keys[signer_index as usize];
+        let sig: Signature = signing_key.sign_prehash(&digest).unwrap();
         let sig = sig.normalize_s().unwrap_or(sig);
         let sig_bytes: [u8; 64] = sig.to_bytes().into();
 
         WebAuthnSignature {
+            signer_index,
             authenticator_data: Bytes::from_slice(&f.env, &authenticator_data),
             client_data_json: Bytes::from_slice(&f.env, client_data_json.as_bytes()),
             signature: BytesN::from_array(&f.env, &sig_bytes),
@@ -343,7 +429,7 @@ mod test {
         let f = setup();
         let hash = payload_hash(&f.env, b"login-1");
         let payload_bytes = hash.to_bytes().to_array();
-        let sig = make_assertion(&f, &payload_bytes, FLAG_USER_PRESENT);
+        let sig = make_assertion(&f, 0, &payload_bytes, FLAG_USER_PRESENT);
         f.env.as_contract(&f.client.address, || {
             SmartWalletContract::__check_auth(f.env.clone(), hash, sig, Vec::new(&f.env)).unwrap();
         });
@@ -354,7 +440,7 @@ mod test {
         let f = setup();
         let signed_hash = payload_hash(&f.env, b"login-1");
         let signed_bytes = signed_hash.to_bytes().to_array();
-        let sig = make_assertion(&f, &signed_bytes, FLAG_USER_PRESENT);
+        let sig = make_assertion(&f, 0, &signed_bytes, FLAG_USER_PRESENT);
         // Soroban presents a different signature_payload than what was actually signed.
         let actual_hash = payload_hash(&f.env, b"login-2");
         f.env.as_contract(&f.client.address, || {
@@ -368,7 +454,7 @@ mod test {
         let f = setup();
         let hash = payload_hash(&f.env, b"login-3");
         let payload_bytes = hash.to_bytes().to_array();
-        let sig = make_assertion(&f, &payload_bytes, 0); // no flags set
+        let sig = make_assertion(&f, 0, &payload_bytes, 0); // no flags set
         f.env.as_contract(&f.client.address, || {
             let result = SmartWalletContract::__check_auth(f.env.clone(), hash, sig, Vec::new(&f.env));
             assert_eq!(result, Err(WalletError::UserNotPresent));
@@ -378,7 +464,8 @@ mod test {
     #[test]
     fn test_double_initialize_fails() {
         let f = setup();
-        let result = f.client.try_initialize(&f.deployer, &f.client.get_public_key());
+        let signers = f.client.get_signers();
+        let result = f.client.try_initialize(&f.deployer, &signers.get(0).unwrap());
         assert!(result.is_err());
     }
 
@@ -394,5 +481,94 @@ mod test {
             unsafe { core::mem::transmute(SmartWalletContractClient::new(&env, &contract_id)) };
         let result = client.try_initialize(&deployer, &BytesN::from_array(&env, &bad));
         assert!(result.is_err());
+    }
+
+    // ── Multi-signer / recovery ─────────────────────────────────────────────
+
+    #[test]
+    fn test_add_signer_then_auth_with_backup_key() {
+        let mut f = setup();
+        let (backup_key, backup_pubkey) = new_p256_keypair(&f.env);
+        f.client.add_signer(&backup_pubkey);
+        f.signing_keys.push(backup_key);
+
+        assert_eq!(f.client.get_signers().len(), 2);
+
+        // The backup key (signer_index 1) can authorize on its own.
+        let hash = payload_hash(&f.env, b"login-backup");
+        let payload_bytes = hash.to_bytes().to_array();
+        let sig = make_assertion(&f, 1, &payload_bytes, FLAG_USER_PRESENT);
+        f.env.as_contract(&f.client.address, || {
+            SmartWalletContract::__check_auth(f.env.clone(), hash, sig, Vec::new(&f.env)).unwrap();
+        });
+    }
+
+    #[test]
+    fn test_original_signer_still_works_after_adding_backup() {
+        let mut f = setup();
+        let (backup_key, backup_pubkey) = new_p256_keypair(&f.env);
+        f.client.add_signer(&backup_pubkey);
+        f.signing_keys.push(backup_key);
+
+        let hash = payload_hash(&f.env, b"login-original");
+        let payload_bytes = hash.to_bytes().to_array();
+        let sig = make_assertion(&f, 0, &payload_bytes, FLAG_USER_PRESENT);
+        f.env.as_contract(&f.client.address, || {
+            SmartWalletContract::__check_auth(f.env.clone(), hash, sig, Vec::new(&f.env)).unwrap();
+        });
+    }
+
+    #[test]
+    fn test_duplicate_signer_rejected() {
+        let f = setup();
+        let signers = f.client.get_signers();
+        let existing = signers.get(0).unwrap();
+        let result = f.client.try_add_signer(&existing);
+        assert_eq!(result, Err(Err(WalletError::SignerAlreadyExists)));
+    }
+
+    #[test]
+    fn test_too_many_signers_rejected() {
+        let f = setup();
+        for _ in 0..(MAX_SIGNERS - 1) {
+            let (_, pubkey) = new_p256_keypair(&f.env);
+            f.client.add_signer(&pubkey);
+        }
+        assert_eq!(f.client.get_signers().len(), MAX_SIGNERS);
+
+        let (_, one_too_many) = new_p256_keypair(&f.env);
+        let result = f.client.try_add_signer(&one_too_many);
+        assert_eq!(result, Err(Err(WalletError::TooManySigners)));
+    }
+
+    #[test]
+    fn test_remove_signer() {
+        let f = setup();
+        let (_, backup_pubkey) = new_p256_keypair(&f.env);
+        f.client.add_signer(&backup_pubkey);
+        assert_eq!(f.client.get_signers().len(), 2);
+
+        f.client.remove_signer(&1);
+        assert_eq!(f.client.get_signers().len(), 1);
+    }
+
+    #[test]
+    fn test_cannot_remove_last_signer() {
+        let f = setup();
+        let result = f.client.try_remove_signer(&0);
+        assert_eq!(result, Err(Err(WalletError::CannotRemoveLastSigner)));
+    }
+
+    #[test]
+    fn test_invalid_signer_index_in_assertion_rejected() {
+        let f = setup();
+        let hash = payload_hash(&f.env, b"login-bad-index");
+        let payload_bytes = hash.to_bytes().to_array();
+        let mut sig = make_assertion(&f, 0, &payload_bytes, FLAG_USER_PRESENT);
+        sig.signer_index = 7; // out of range — only index 0 exists
+        f.env.as_contract(&f.client.address, || {
+            let result = SmartWalletContract::__check_auth(f.env.clone(), hash, sig, Vec::new(&f.env));
+            assert_eq!(result, Err(WalletError::InvalidSignerIndex));
+        });
     }
 }
