@@ -18,7 +18,46 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "bytes": "04d3734c2467195bfc9e5f4038429c671fc5467c1e048e26e2988dcf609aaf456ef2007d2ef0b8e568d1bdd43b2b55f068a4a4edf02538300153b48a9620594991"
+                  "bytes": "046e658ae582078130264641d36e95051eac426a4d04e9afb3330a398114f87e73a099c9c96c8fb376f0c255cdc14ba08d052696222243fc62314da959085bd434"
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+              "function_name": "add_signer",
+              "args": [
+                {
+                  "bytes": "04e78a8dcb92778b67e0f3380d519343f798541c525c523959ed69ed644d4b41e673adc68491c9b943e763e8d5ea6db6026520472ee8104067b285b7cf60d47bfc"
+                }
+              ]
+            }
+          },
+          "sub_invocations": []
+        }
+      ]
+    ],
+    [],
+    [
+      [
+        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+        {
+          "function": {
+            "contract_fn": {
+              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+              "function_name": "remove_signer",
+              "args": [
+                {
+                  "u32": 1
                 }
               ]
             }
@@ -106,7 +145,7 @@
                         "val": {
                           "vec": [
                             {
-                              "bytes": "04d3734c2467195bfc9e5f4038429c671fc5467c1e048e26e2988dcf609aaf456ef2007d2ef0b8e568d1bdd43b2b55f068a4a4edf02538300153b48a9620594991"
+                              "bytes": "046e658ae582078130264641d36e95051eac426a4d04e9afb3330a398114f87e73a099c9c96c8fb376f0c255cdc14ba08d052696222243fc62314da959085bd434"
                             }
                           ]
                         }
@@ -119,6 +158,72 @@
             "ext": "v0"
           },
           1000000
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": 1033654523790656264
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": 1033654523790656264
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6311999
+        ]
+      ],
+      [
+        {
+          "contract_data": {
+            "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+            "key": {
+              "ledger_key_nonce": {
+                "nonce": 5541220902715666415
+              }
+            },
+            "durability": "temporary"
+          }
+        },
+        [
+          {
+            "last_modified_ledger_seq": 0,
+            "data": {
+              "contract_data": {
+                "ext": "v0",
+                "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4",
+                "key": {
+                  "ledger_key_nonce": {
+                    "nonce": 5541220902715666415
+                  }
+                },
+                "durability": "temporary",
+                "val": "void"
+              }
+            },
+            "ext": "v0"
+          },
+          6311999
         ]
       ],
       [

@@ -18,7 +18,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
                 },
                 {
-                  "bytes": "048ee3ddd98cc81f49e582c84419665924dc9c55efd1cbe43b32e8ec80ff0341e7650c7cab1d56b0957121ca0812a11187f0d413e49afaabb31545c3ba0a245719"
+                  "bytes": "040aa71f19c6a2190037565929cf434473eec92ba259e8dbd71a905eca97f3733300f980d9d3a387967611e46c9aefa55f817f8b47a1b4daf67163449c5d9411fc"
                 }
               ]
             }
@@ -99,12 +99,16 @@
                         "key": {
                           "vec": [
                             {
-                              "symbol": "PublicKey"
+                              "symbol": "Signers"
                             }
                           ]
                         },
                         "val": {
-                          "bytes": "048ee3ddd98cc81f49e582c84419665924dc9c55efd1cbe43b32e8ec80ff0341e7650c7cab1d56b0957121ca0812a11187f0d413e49afaabb31545c3ba0a245719"
+                          "vec": [
+                            {
+                              "bytes": "040aa71f19c6a2190037565929cf434473eec92ba259e8dbd71a905eca97f3733300f980d9d3a387967611e46c9aefa55f817f8b47a1b4daf67163449c5d9411fc"
+                            }
+                          ]
                         }
                       }
                     ]
