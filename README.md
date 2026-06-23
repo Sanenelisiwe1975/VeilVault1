@@ -197,7 +197,10 @@ Fixed-denomination shielded mixer (10 XLM per note). Deposits insert a SHA-256 c
 Payment attestation and Ika dWallet signature verification contracts.
 
 #### `smart-wallet`
-Soroban custom account (`CustomAccountInterface`) for passkey-based account abstraction. Binds a deployed instance to a passkey's secp256r1 public key; `__check_auth` verifies WebAuthn assertions natively on-chain instead of a classic Ed25519 signature — see [Authentication](#authentication).
+Soroban custom account (`CustomAccountInterface`) for passkey-based account abstraction. Binds a deployed instance to one or more passkey secp256r1 public keys (a "signer" list, not just one); `__check_auth` verifies WebAuthn assertions natively on-chain instead of a classic Ed25519 signature, against whichever registered signer the assertion claims. `add_signer` / `remove_signer` let a user register a backup passkey — recovery if one device is lost — and require the wallet's own auth (an existing signer's WebAuthn assertion), so only someone who already controls the wallet can add or remove a key. See [Authentication](#authentication).
+
+#### `passkey-registry`
+Durable on-chain index from a hashed WebAuthn credential ID to the `smart-wallet` instance (and verification material) it belongs to. Exists so the backend doesn't need to remember that mapping in memory — a backend restart no longer strands existing passkey wallets. It's a lookup only, not an authority: a wrong or malicious entry can only point sign-in at the wrong wallet, since actual signing authority lives entirely in that wallet's own registered signers.
 
 ---
 
@@ -281,10 +284,12 @@ As an alternative to a Stellar keypair, users can sign in with a device passkey 
 
 1. `POST /api/auth/passkey/register/options { userName }` → WebAuthn registration options
 2. Browser calls `navigator.credentials.create()` (via `@simplewebauthn/browser`)
-3. `POST /api/auth/passkey/register/verify { sessionId, response }` → deploys + initializes the wallet contract, returns `{ walletAddress, token }`
-4. Returning users: `POST /api/auth/passkey/login/options { walletAddress }` → `POST /api/auth/passkey/login/verify` → fresh `{ token }`, no transaction involved
+3. `POST /api/auth/passkey/register/verify { sessionId, response }` → deploys + initializes the wallet contract, registers the credential in [contracts/passkey-registry](contracts/passkey-registry), returns `{ walletAddress, token }`
+4. Returning users: `POST /api/auth/passkey/login/options {}` (no address needed — the browser offers every discoverable passkey for this origin) → `POST /api/auth/passkey/login/verify` → the backend resolves which wallet via passkey-registry and returns a fresh `{ token }`, no transaction involved
 
-**Scope note:** sign-in (login → session JWT) is fully implemented and verifies the WebAuthn assertion server-side. Authorizing an actual on-chain transaction *as* a passkey wallet (exercising `__check_auth` for a real payment/deposit) is not yet wired up — it needs a per-transaction WebAuthn ceremony plus DER→raw signature decoding and low-S normalization before submission (Soroban's `secp256r1_verify` rejects non-canonical signatures, which browser-issued ECDSA signatures aren't guaranteed to be). That's the next milestone for this feature.
+**Recovery (add backup passkey):** a wallet isn't limited to one passkey. `POST /api/passkey/signers/add/options` (authenticated — the wallet is read from the caller's own session, not the request body) starts registering a new backup passkey; `POST /api/passkey/signers/add/register-verify` verifies it and returns a second WebAuthn challenge — this one *is* the exact hash of the on-chain `add_signer` authorization, so signing it with an **existing** passkey on the same wallet is what authorizes adding the new one; `POST /api/passkey/signers/add/authorize` submits that on-chain and registers the new credential in passkey-registry. This is a real Soroban transaction: the backend builds the `SorobanAuthorizationEntry` manually (the SDK's own auth helpers only support classic Ed25519 accounts), DER-decodes and low-S-normalizes the browser's raw ECDSA signature (Soroban's `secp256r1_verify` rejects non-canonical signatures), and re-simulates after the signature is attached so the resource budget reflects the real cost of running `__check_auth` rather than the cheaper "recording" estimate from before a signature existed. Verified end to end against live testnet via `backend/scripts/validate-passkey-tx-auth.ts`. Adding or removing a signer requires the wallet's own on-chain auth (an existing signer's WebAuthn assertion), so only someone who already controls the wallet can do it.
+
+**Scope note:** sign-in, the on-chain multi-signer primitive, and authorizing a passkey-wallet transaction for `add_signer` specifically are all implemented, tested, and validated against live testnet. What's *not* wired up: a *general* signing path for arbitrary transactions (e.g. payments/deposits) as a passkey wallet — `WalletSession.signTransaction` still throws for `walletType === "passkey"` outside of the two flows above. The authorization-entry construction in `StellarClient.prepareAuthorizedInvocation`/`submitAuthorizedInvocation` is already invocation-agnostic, so extending it to other contract calls is mostly plumbing, not new cryptography.
 
 ## API Reference
 
