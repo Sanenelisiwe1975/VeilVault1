@@ -524,7 +524,7 @@ mod test {
         let signers = f.client.get_signers();
         let existing = signers.get(0).unwrap();
         let result = f.client.try_add_signer(&existing);
-        assert_eq!(result, Err(Err(WalletError::SignerAlreadyExists)));
+        assert_eq!(result, Err(Ok(WalletError::SignerAlreadyExists)));
     }
 
     #[test]
@@ -538,7 +538,7 @@ mod test {
 
         let (_, one_too_many) = new_p256_keypair(&f.env);
         let result = f.client.try_add_signer(&one_too_many);
-        assert_eq!(result, Err(Err(WalletError::TooManySigners)));
+        assert_eq!(result, Err(Ok(WalletError::TooManySigners)));
     }
 
     #[test]
@@ -556,7 +556,7 @@ mod test {
     fn test_cannot_remove_last_signer() {
         let f = setup();
         let result = f.client.try_remove_signer(&0);
-        assert_eq!(result, Err(Err(WalletError::CannotRemoveLastSigner)));
+        assert_eq!(result, Err(Ok(WalletError::CannotRemoveLastSigner)));
     }
 
     #[test]
