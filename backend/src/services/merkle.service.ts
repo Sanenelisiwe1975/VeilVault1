@@ -3,7 +3,7 @@ import {
   Account,
   Contract,
   Networks,
-  SorobanRpc,
+  rpc as SorobanRpc,
   TransactionBuilder,
   nativeToScVal,
   scValToNative,

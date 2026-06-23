@@ -163,7 +163,7 @@ export class StokvelService {
       [
         new Address(params.voter).toScVal(),
         nativeToScVal(params.proposalId, { type: 'u64' }),
-        nativeToScVal(params.approve, { type: 'bool' }),
+        nativeToScVal(params.approve),
       ],
       params.voterSecret
     );

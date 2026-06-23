@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { requestId, apiKeyAuth } from './middleware/auth.middleware';
 import authRoutes from './routes/auth.routes';
 import passkeyRoutes from './routes/passkey.routes';
+import passkeySignerRoutes from './routes/passkey-signer.routes';
 import vaultRoutes from './routes/vault.routes';
 import agentRoutes from './routes/agent.routes';
 import paymentRoutes from './routes/payment.routes';
@@ -54,6 +55,7 @@ export function createServer(): express.Application {
   // All other API routes require a valid Bearer token (API key OR session token)
 
   app.use('/api', apiKeyAuth);
+  app.use('/api/passkey/signers', passkeySignerRoutes);
   app.use('/api/vault', vaultRoutes);
   app.use('/api/agents', agentRoutes);
   app.use('/api/payments', paymentRoutes);

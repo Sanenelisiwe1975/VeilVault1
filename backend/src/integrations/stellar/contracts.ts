@@ -34,7 +34,7 @@ function u64Val(n: bigint): xdr.ScVal {
 }
 
 function boolVal(b: boolean): xdr.ScVal {
-  return nativeToScVal(b, { type: 'bool' });
+  return nativeToScVal(b);
 }
 
 function bytesVal(buf: Buffer): xdr.ScVal {

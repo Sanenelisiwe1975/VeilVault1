@@ -57,18 +57,16 @@ router.post('/register/verify', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/login/options', async (req: Request, res: Response) => {
-  const body = z.object({ walletAddress: z.string().min(1) }).safeParse(req.body);
-  if (!body.success) {
-    res.status(400).json({ error: 'Missing "walletAddress" field' });
-    return;
-  }
+router.post('/login/options', async (_req: Request, res: Response) => {
+  // No wallet address needed — the browser offers every discoverable
+  // passkey for this origin, and the assertion's credential id tells
+  // finishPasskeyLogin which wallet (via passkey-registry) to resolve.
   try {
-    const { sessionId, options } = await startPasskeyLogin(body.data.walletAddress);
+    const { sessionId, options } = await startPasskeyLogin();
     res.json({ sessionId, options });
   } catch (err) {
-    log.warn({ err: (err as Error).message }, 'Failed to start passkey login');
-    res.status(404).json({ error: (err as Error).message });
+    log.error({ err: (err as Error).message }, 'Failed to start passkey login');
+    res.status(500).json({ error: 'Failed to start passkey login' });
   }
 });
 

@@ -3,7 +3,7 @@ import {
   Contract,
   Networks,
   TransactionBuilder,
-  SorobanRpc,
+  rpc as SorobanRpc,
   Keypair,
   xdr,
   nativeToScVal,

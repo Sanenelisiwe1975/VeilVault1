@@ -48,6 +48,10 @@ pub struct CredentialRecord {
     /// verifier needs (distinct from the SEC1 form the smart-wallet
     /// contract itself stores).
     pub public_key_cose: Bytes,
+    /// Index of this credential's key in the wallet's `smart-wallet` signers
+    /// list (see `get_signers`) — needed to build a `WebAuthnSignature` that
+    /// `__check_auth` can verify.
+    pub signer_index: u32,
     /// WebAuthn signature counter, for standard replay-detection bookkeeping.
     pub counter: u32,
 }
@@ -83,6 +87,7 @@ impl PasskeyRegistryContract {
         credential_id_hash: BytesN<32>,
         wallet: Address,
         public_key_cose: Bytes,
+        signer_index: u32,
     ) -> Result<(), RegistryError> {
         let admin = Self::get_admin(&env)?;
         admin.require_auth();
@@ -92,7 +97,7 @@ impl PasskeyRegistryContract {
             return Err(RegistryError::AlreadyRegistered);
         }
 
-        let record = CredentialRecord { wallet, public_key_cose, counter: 0 };
+        let record = CredentialRecord { wallet, public_key_cose, signer_index, counter: 0 };
         env.storage().persistent().set(&key, &record);
         env.storage().persistent().extend_ttl(&key, TTL, TTL);
         Ok(())
@@ -169,7 +174,7 @@ mod test {
         let cose = Bytes::from_slice(&f.env, b"fake-cose-key-bytes");
         let hash = hash_of(&f.env, 1);
 
-        f.client.register(&hash, &wallet, &cose);
+        f.client.register(&hash, &wallet, &cose, &0);
 
         let record = f.client.resolve(&hash);
         assert_eq!(record.wallet, wallet);
@@ -191,8 +196,8 @@ mod test {
         let cose = Bytes::from_slice(&f.env, b"key-1");
         let hash = hash_of(&f.env, 2);
 
-        f.client.register(&hash, &wallet, &cose);
-        let result = f.client.try_register(&hash, &wallet, &cose);
+        f.client.register(&hash, &wallet, &cose, &0);
+        let result = f.client.try_register(&hash, &wallet, &cose, &0);
         assert_eq!(result, Err(Ok(RegistryError::AlreadyRegistered)));
     }
 
@@ -205,8 +210,8 @@ mod test {
         let cose_a = Bytes::from_slice(&f.env, b"key-a");
         let cose_b = Bytes::from_slice(&f.env, b"key-b");
 
-        f.client.register(&hash_of(&f.env, 3), &wallet, &cose_a);
-        f.client.register(&hash_of(&f.env, 4), &wallet, &cose_b);
+        f.client.register(&hash_of(&f.env, 3), &wallet, &cose_a, &0);
+        f.client.register(&hash_of(&f.env, 4), &wallet, &cose_b, &1);
 
         assert_eq!(f.client.resolve(&hash_of(&f.env, 3)).wallet, wallet);
         assert_eq!(f.client.resolve(&hash_of(&f.env, 4)).wallet, wallet);
@@ -219,7 +224,7 @@ mod test {
         let cose = Bytes::from_slice(&f.env, b"key");
         let hash = hash_of(&f.env, 5);
 
-        f.client.register(&hash, &wallet, &cose);
+        f.client.register(&hash, &wallet, &cose, &0);
         f.client.update_counter(&hash, &42);
 
         assert_eq!(f.client.resolve(&hash).counter, 42);

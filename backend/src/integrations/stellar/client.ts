@@ -3,11 +3,13 @@ import {
   Keypair,
   rpc as StellarRpc,
   TransactionBuilder,
+  Transaction,
   BASE_FEE,
   xdr,
   Operation,
   Address,
   scValToNative,
+  hash as stellarHash,
 } from '@stellar/stellar-sdk';
 import { randomBytes } from 'crypto';
 import { config, STELLAR_NETWORKS } from '../../config';
@@ -16,6 +18,36 @@ import { createChildLogger } from '../../utils/logger';
 const log = createChildLogger('stellar-client');
 
 export type NetworkName = 'testnet' | 'mainnet' | 'futurenet';
+
+/**
+ * Soroban's TransactionMeta union gained a v4 arm (current testnet protocol)
+ * alongside the older v3 arm (still seen on networks running an earlier
+ * protocol) — both carry a return value, just under differently-named structs.
+ */
+function sorobanReturnValue(meta: xdr.TransactionMeta): xdr.ScVal | undefined {
+  switch (meta.switch()) {
+    case 3:
+      return meta.v3().sorobanMeta()?.returnValue();
+    case 4:
+      return meta.v4().sorobanMeta()?.returnValue() ?? undefined;
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Output of `prepareAuthorizedInvocation` / input to `submitAuthorizedInvocation`.
+ * Holds live SDK objects rather than XDR strings — see the doc comment on
+ * `submitAuthorizedInvocation` for why that's fine here.
+ */
+export interface PreparedAuthorization {
+  tx: Transaction;
+  simResult: StellarRpc.Api.SimulateTransactionSuccessResponse;
+  entries: xdr.SorobanAuthorizationEntry[];
+  authEntryIndex: number;
+  payloadHash: Buffer;
+  signatureExpirationLedger: number;
+}
 
 export class StellarClient {
   private rpc: StellarRpc.Server;
@@ -111,10 +143,7 @@ export class StellarClient {
     let resultVal: xdr.ScVal | null = null;
     if (confirmed.status === 'SUCCESS' && confirmed.resultMetaXdr) {
       try {
-        const meta = confirmed.resultMetaXdr;
-        if (meta.v3().sorobanMeta()?.returnValue()) {
-          resultVal = meta.v3().sorobanMeta()!.returnValue();
-        }
+        resultVal = sorobanReturnValue(confirmed.resultMetaXdr) ?? null;
       } catch { /* ignore decode errors */ }
     }
 
@@ -165,7 +194,7 @@ export class StellarClient {
     if (confirmed.status !== 'SUCCESS' || !confirmed.resultMetaXdr) {
       throw new Error('uploadContractWasm did not succeed');
     }
-    const returnVal = confirmed.resultMetaXdr.v3().sorobanMeta()?.returnValue();
+    const returnVal = sorobanReturnValue(confirmed.resultMetaXdr);
     if (!returnVal) throw new Error('No return value from uploadContractWasm');
     const wasmHash = Buffer.from(scValToNative(returnVal) as Uint8Array);
 
@@ -211,12 +240,160 @@ export class StellarClient {
     if (confirmed.status !== 'SUCCESS' || !confirmed.resultMetaXdr) {
       throw new Error('createCustomContract did not succeed');
     }
-    const returnVal = confirmed.resultMetaXdr.v3().sorobanMeta()?.returnValue();
+    const returnVal = sorobanReturnValue(confirmed.resultMetaXdr);
     if (!returnVal) throw new Error('No return value from createCustomContract');
     const contractAddress = Address.fromScVal(returnVal).toString();
 
     log.info({ txHash: response.hash, contractAddress }, 'Contract instance deployed');
     return { contractAddress, txHash: response.hash };
+  }
+
+  /**
+   * Step 1 of authorizing a contract invocation on behalf of a Soroban
+   * custom account (e.g. a `smart-wallet` instance) whose `__check_auth`
+   * needs a signature we can't produce synchronously (a WebAuthn ceremony
+   * has to happen in the user's browser).
+   *
+   * Builds the invocation, simulates it to learn the required
+   * `SorobanAuthorizationEntry` for `authAddress`, and computes the exact
+   * 32-byte hash that entry's signature must cover — the same
+   * `signature_payload` the contract's `__check_auth` will receive. The
+   * caller gets that hash back to use as a WebAuthn `challenge`; once an
+   * assertion comes back, finish the flow with
+   * `submitAuthorizedInvocation`.
+   *
+   * NOTE: `@stellar/stellar-sdk`'s own `authorizeEntry`/`authorizeInvocation`
+   * helpers can't be reused here — they hard-code the signature into the
+   * classic Ed25519 "account contract" ScVal shape and verify it as an
+   * Ed25519 signature against the entry's address, which only works for
+   * G... accounts, never for a contract-address (C...) custom account like
+   * ours. We build and fill the entry manually instead.
+   */
+  async prepareAuthorizedInvocation(params: {
+    contractId: string;
+    method: string;
+    args: xdr.ScVal[];
+    authAddress: string;
+    feePayerPublicKey: string;
+    validLedgerWindow?: number; // how many ledgers the auth stays valid for; default ~8 min at 5s/ledger
+  }): Promise<PreparedAuthorization> {
+    const account = await this.loadAccount(params.feePayerPublicKey);
+    const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: this.networkPassphrase })
+      .addOperation(Operation.invokeContractFunction({
+        contract: params.contractId,
+        function: params.method,
+        args: params.args,
+      }))
+      .setTimeout(30)
+      .build();
+
+    const simResult = await this.simulate(tx);
+    if (!StellarRpc.Api.isSimulationSuccess(simResult)) {
+      throw new Error(`prepareAuthorizedInvocation simulation failed: ${JSON.stringify(simResult)}`);
+    }
+    const entries = simResult.result?.auth ?? [];
+    const authEntryIndex = entries.findIndex((entry) => {
+      if (entry.credentials().switch() !== xdr.SorobanCredentialsType.sorobanCredentialsAddress()) return false;
+      const entryAddress = Address.fromScAddress(entry.credentials().address().address()).toString();
+      return entryAddress === params.authAddress;
+    });
+    if (authEntryIndex === -1) {
+      throw new Error(`No auth entry for address ${params.authAddress} — does this invocation actually need its authorization?`);
+    }
+
+    const currentLedger = await this.getLedgerSequence();
+    const signatureExpirationLedger = currentLedger + (params.validLedgerWindow ?? 100);
+
+    const addrAuth = entries[authEntryIndex].credentials().address();
+    addrAuth.signatureExpirationLedger(signatureExpirationLedger);
+
+    const networkId = stellarHash(Buffer.from(this.networkPassphrase));
+    const preimage = xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
+      new xdr.HashIdPreimageSorobanAuthorization({
+        networkId,
+        nonce: addrAuth.nonce(),
+        invocation: entries[authEntryIndex].rootInvocation(),
+        signatureExpirationLedger,
+      }),
+    );
+    const payloadHash = stellarHash(preimage.toXDR());
+
+    return { tx, simResult, entries, authEntryIndex, payloadHash, signatureExpirationLedger };
+  }
+
+  /**
+   * Step 2: attach a completed signature ScVal to the prepared entry, sign
+   * the transaction envelope with the fee payer, and submit. `signatureScVal`
+   * must decode to whatever type the target contract's
+   * `CustomAccountInterface::Signature` is (for `smart-wallet`, a
+   * `WebAuthnSignature` struct) — this method doesn't know or care about
+   * that shape, it just slots it in.
+   *
+   * `prepared` must be the exact object `prepareAuthorizedInvocation`
+   * returned — it carries live SDK objects (not XDR strings) because the
+   * gap between the two steps is just "time for the browser's WebAuthn
+   * ceremony," not a process boundary; the caller (passkey.service.ts) is
+   * expected to hold onto it in memory the same way it already holds
+   * pending WebAuthn challenges for register/login.
+   */
+  async submitAuthorizedInvocation(params: {
+    prepared: PreparedAuthorization;
+    signatureScVal: xdr.ScVal;
+    feePayerSecretKey: string;
+  }): Promise<{ txHash: string; result: xdr.ScVal | null }> {
+    const { tx, entries, authEntryIndex } = params.prepared;
+    const signer = Keypair.fromSecret(params.feePayerSecretKey);
+
+    entries[authEntryIndex].credentials().address().signature(params.signatureScVal);
+
+    const invokeOp = tx.operations[0] as Operation.InvokeHostFunction;
+
+    // The original simulation (prepareAuthorizedInvocation) ran before this
+    // entry had a real signature, so Soroban only *recorded* that an auth
+    // entry was needed here rather than actually executing __check_auth —
+    // meaning its resource/instruction estimate never accounted for the real
+    // cost of secp256r1_verify. Re-simulate now that the entry is complete so
+    // the network enforces (not records) it and gives an accurate budget.
+    const unsizedTx = TransactionBuilder.cloneFrom(tx, { networkPassphrase: this.networkPassphrase })
+      .clearOperations()
+      .addOperation(Operation.invokeHostFunction({ func: invokeOp.func, auth: entries }))
+      .build();
+    const resim = await this.simulate(unsizedTx);
+    if (StellarRpc.Api.isSimulationError(resim)) {
+      throw new Error(`submitAuthorizedInvocation re-simulation failed: ${resim.error}`);
+    }
+
+    const rebuilt = StellarRpc.assembleTransaction(unsizedTx, resim).build();
+    rebuilt.sign(signer);
+
+    const response = await this.rpc.sendTransaction(rebuilt);
+    if (response.status === 'ERROR') {
+      throw new Error(`submitAuthorizedInvocation submission failed: ${response.errorResult?.toString()}`);
+    }
+    const confirmed = await this.waitForTransaction(response.hash);
+    if (confirmed.status !== 'SUCCESS') {
+      const diag = (confirmed as { diagnosticEventsXdr?: xdr.DiagnosticEvent[] }).diagnosticEventsXdr
+        ?.map((e) => {
+          const body = e.event().body().v0();
+          return {
+            topics: body.topics().map((t) => scValToNative(t)),
+            data: scValToNative(body.data()),
+            inSuccessfulContractCall: e.inSuccessfulContractCall(),
+          };
+        });
+      log.error({ txHash: response.hash, status: confirmed.status, diag }, 'submitAuthorizedInvocation failed');
+      throw new Error(`submitAuthorizedInvocation transaction did not succeed: ${confirmed.status}`);
+    }
+
+    let resultVal: xdr.ScVal | null = null;
+    if (confirmed.resultMetaXdr) {
+      try {
+        resultVal = sorobanReturnValue(confirmed.resultMetaXdr) ?? null;
+      } catch { /* ignore decode errors */ }
+    }
+
+    log.info({ txHash: response.hash }, 'Passkey-authorized invocation submitted');
+    return { txHash: response.hash, result: resultVal };
   }
 
   /**
