@@ -19,7 +19,7 @@ import { PrivacyPoolPage }   from "./pages/PrivacyPoolPage";
 import { PaymentsPage }      from "./pages/PaymentsPage";
 import { AssetsPage }        from "./pages/AssetsPage";
 import { AnalyticsPage }     from "./pages/AnalyticsPage";
-import {UserTypeSelectionPage} from "./pages/UserTypeSelectionPage";
+import UserTypeSelectionPage from "./pages/UserTypeSelectionPage";
 
 import { Sidebar }       from "./components/layout/Sidebar";
 import { Header }        from "./components/layout/Header";
@@ -129,6 +129,10 @@ export default function App() {
     <WalletContextProvider>
       {screen === "landing" && (
         <LandingPage onLaunch={() => setScreen(isOnboarded() ? "app" : "onboarding")} />
+      )}
+      {screen === "userType" && (
+        <UserTypeSelectionPage onSelect={() => setScreen("onboarding")}
+        />
       )}
       {screen === "onboarding" && (
         <OnboardingFlow onComplete={() => setScreen("app")} />

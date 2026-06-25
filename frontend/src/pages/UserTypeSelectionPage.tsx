@@ -1,6 +1,14 @@
-import { useNavigate } from "react-router-dom"
+import React from "react"
 
-type UserType = "individual" | "stokvel" | "business":
+type UserType = "individual" | "stokvel" | "business";
+
+interface Props {
+  /** Called after userType is written to localStorage. App.tsx uses this to
+   *  advance the screen state to "onboarding". When used standalone with a
+   *  router, this prop can be omitted and the component will do nothing extra
+   *  after setting localStorage — your router guard handles the redirect. */
+  onSelect?: () => void;
+}
 
 interface Usercard {
     type : UserType;
@@ -9,7 +17,7 @@ interface Usercard {
     description: string;
 }
 
-const USER_Cards: UseCard[] = [
+const USER_CARDS: UserCard[] = [
     {
         type: "individual",
         icon: "👤",
@@ -30,12 +38,10 @@ const USER_Cards: UseCard[] = [
     },
 ];
 
-export default function UserTypeSelectionPage() {
-  const navigate = useNavigate();
-
+export default function UserTypeSelectionPage({onSelect }: Props) {
   const handleSelect = (type: UserType) => {
     localStorage.setItem("userType", type);
-    navigate("/onboarding");
+    onSelect?.();
   };
 
   return (
