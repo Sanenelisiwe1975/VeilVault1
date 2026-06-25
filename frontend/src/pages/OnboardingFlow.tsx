@@ -12,6 +12,7 @@ import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton, GradientText } from "../components/ui";
 import { useIsMobile } from "../hooks";
 import { useWalletSession } from "../context/WalletSession";
+import { useUserType } from "../hooks/useUserType";
 import { api } from "../lib/api";
 
 //Persistence 
@@ -656,6 +657,7 @@ const STEPS = [
 
 export const OnboardingFlow: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const isMobile = useIsMobile();
+  const userType = useUserType();
 
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
