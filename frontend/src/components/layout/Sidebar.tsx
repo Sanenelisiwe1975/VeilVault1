@@ -3,7 +3,7 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon, GradientText } from "../ui";
 import type { SidebarProps, NavItem } from "../../types";
-import { UserType } from '../../context/UserTypeContext';
+import { UserType, USER_TYPE_META } from '../../context/UserTypeContext';
 
 interface NavLink {
   icon:  string;
