@@ -3,24 +3,26 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon, GradientText } from "../ui";
 import type { SidebarProps, NavItem } from "../../types";
+import { UserType } from '../../context/UserTypeContext';
 
 interface NavLink {
   icon:  string;
   label: NavItem;
+  userTypes: Array <"individual" | "stokvel" | "business" | "all">;
 }
 
-const NAV_LINKS: NavLink[] = [
-  { icon: "dashboard",              label: "Portfolio" },
-  { icon: "account_balance_wallet", label: "Vaults"    },
-  { icon: "groups",                 label: "Stokvel"   },
-  { icon: "badge",                  label: "Identity"  },
-  { icon: "privacy_tip",            label: "Pool"      },
-  { icon: "send",                   label: "Payments"  },
-  { icon: "storefront",             label: "Assets"    },
-  { icon: "bar_chart",              label: "Analytics" },
-  { icon: "explore",                label: "Strategy"  },
-  { icon: "verified_user",          label: "Security"  },
-  { icon: "settings",               label: "Settings"  },
+const ALL_NAV_LINKS: NavLink[] = [
+  { icon: "dashboard",              label: "Portfolio",   userTypes: ["all"]                        },
+  { icon: "account_balance_wallet", label: "Vaults",      userTypes: ["all"]                        },
+  { icon: "groups",                 label: "Stokvel",     userTypes: ["stokvel"]                    },
+  { icon: "badge",                  label: "Identity",    userTypes: ["individual", "business"]     },
+  { icon: "privacy_tip",            label: "Pool",        userTypes: ["individual", "stokvel"]      },
+  { icon: "send",                   label: "Payments",    userTypes: ["all"]                        },
+  { icon: "storefront",             label: "Assets",      userTypes: ["individual", "business"]     },
+  { icon: "bar_chart",              label: "Analytics",   userTypes: ["business","stokvel"]         },
+  { icon: "explore",                label: "Strategy",    userTypes: ["individual", "business"]     },
+  { icon: "verified_user",          label: "Security",    userTypes: ["all"]                        },
+  { icon: "settings",               label: "Settings",    userTypes: ["all"]                        },
 ];
 
 const UTILITY_LINKS = [
@@ -33,6 +35,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeNav, onNavChange, onHome
   const shortKey = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}…${publicKey.toBase58().slice(-4)}`
     : null;
+  
+  const userType = localStorage.getItem("userType") as "individual" | "stokvel" | "business" | null;
+  const typeMeta = userType ? USER_TYPE_META[userType] : null;
+
+  // Filter nav: keep items whose userTypes includes the current userType or "all"
+  const NAV_LINKS = ALL_NAV_LINKS.filter(({ userTypes }) =>
+    userTypes.includes("all") || (userType && userTypes.includes(userType))
+  );
 
   return (
   <aside
@@ -53,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeNav, onNavChange, onHome
     }}
   >
     {/* ── Logo ── */}
-    <div style={{ marginBottom: 36 }}>
+    <div style={{ marginBottom: 20 }}>
       <button
         type="button"
         onClick={onHome}
@@ -70,6 +80,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeNav, onNavChange, onHome
         </div>
       </button>
     </div>
+
+    {/* ── userType badge ── */}
+      {typeMeta && (
+        <div style={{
+          display:      "flex",
+          alignItems:   "center",
+          gap:          8,
+          padding:      "7px 12px",
+          borderRadius: 8,
+          background:   `${typeMeta.color}14`,
+          border:       `1px solid ${typeMeta.color}30`,
+          marginBottom: 20,
+        }}>
+          <MaterialIcon name={typeMeta.icon} size={14} style={{ color: typeMeta.color, flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: typeMeta.color, fontFamily: fontFamily.body, letterSpacing: "0.04em", textTransform: "uppercase" }}>
+            {typeMeta.label}
+          </span>
+        </div>
+      )}
 
     {/* ── Nav ── */}
     <nav style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
