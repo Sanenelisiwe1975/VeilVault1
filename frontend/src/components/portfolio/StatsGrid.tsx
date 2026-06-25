@@ -1,7 +1,7 @@
 import React from "react";
 import { colors, fontFamily } from "../../constants/theme";
 
-// ─── TVL Card ─────────────────────────────────────────────────────────────────
+//TVL Card 
 
 interface TvlCardProps {
   /** Real vault total assets in XLM stroops (string). Falls back to demo value. */
@@ -43,7 +43,7 @@ export const TvlCard: React.FC<TvlCardProps> = ({ totalAssets }) => {
   );
 };
 
-// ─── Net Worth Card ───────────────────────────────────────────────────────────
+//Net Worth Card 
 
 interface NetWorthCardProps {
   netValueXlm?: number;

@@ -1,5 +1,5 @@
 import React from "react";
-import { useUserType } from "../hooks/useUserType";
+import { useUserType } from "../hooks/useUserType.ts";
 import IndividualDashboard from "./dashboard/IndividualDashboard";
 import StokvelDashboard    from "./dashboard/StokvelDashboard";
 import BusinessDashboard from './dashboard/BusinessDashboard';

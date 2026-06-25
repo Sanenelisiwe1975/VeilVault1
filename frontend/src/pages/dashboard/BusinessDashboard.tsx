@@ -2,7 +2,7 @@ import React from "react";
 import { StatsGrid }         from "../../components/portfolio/StatsGrid";
 import { SecurityPulse }     from "../../components/portfolio/SecurityPulse";
 import { PerformancePanel }  from "../../components/detail/Performance";
-import { TvlCard }           from "../../components/portfolio/Cards";
+import { TvlCard }           from "../../components/portfolio/StatsGrid";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon }      from "../../components/ui";
 import { useIsMobile }       from "../../hooks";

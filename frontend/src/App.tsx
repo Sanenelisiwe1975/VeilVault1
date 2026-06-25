@@ -20,6 +20,7 @@ import { PaymentsPage }      from "./pages/PaymentsPage";
 import { AssetsPage }        from "./pages/AssetsPage";
 import { AnalyticsPage }     from "./pages/AnalyticsPage";
 import UserTypeSelectionPage from "./pages/UserTypeSelectionPage";
+import DashboardRouter from './pages/DashboardRouter';
 
 import { Sidebar }       from "./components/layout/Sidebar";
 import { Header }        from "./components/layout/Header";
@@ -75,7 +76,7 @@ function Dashboard({ onHome }: { onHome: () => void }) {
   const renderPage = () => {
     if (showVaultDetail) return <VaultDetailPage />;
     switch (activeNav) {
-      case "Portfolio":  return <PortfolioPage />;
+      case "Portfolio":  return <DashboardRouter />;
       case "Vaults":     return <VaultsBrowserPage onOpenVault={() => setShowVaultDetail(true)} />;
       case "Stokvel":    return <StokvelPage />;
       case "Identity":   return <IdentityPage />;
