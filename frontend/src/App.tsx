@@ -19,6 +19,7 @@ import { PrivacyPoolPage }   from "./pages/PrivacyPoolPage";
 import { PaymentsPage }      from "./pages/PaymentsPage";
 import { AssetsPage }        from "./pages/AssetsPage";
 import { AnalyticsPage }     from "./pages/AnalyticsPage";
+import {UserTypeSelectionPage} from "./pages/UserTypeSelectionPage";
 
 import { Sidebar }       from "./components/layout/Sidebar";
 import { Header }        from "./components/layout/Header";
@@ -28,7 +29,7 @@ import { MaterialIcon }  from "./components/ui";
 
 import type { NavItem } from "./types";
 
-// ─── Connect bar ──────────────────────────────────────────────────────────────
+// Connect bar 
 function ConnectBar() {
   const { isConnected, address, disconnect } = useWalletSession();
   const [showModal, setShowModal] = useState(false);
@@ -60,7 +61,7 @@ function ConnectBar() {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+//Dashboard 
 function Dashboard({ onHome }: { onHome: () => void }) {
   const isMobile = useIsMobile();
   const { activeNav, activeTab, setActiveTab, handleNavChange } = useNavigation();
@@ -115,13 +116,14 @@ function Dashboard({ onHome }: { onHome: () => void }) {
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
+// Root
 type Screen = "landing" | "onboarding" | "app";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() =>
     isOnboarded() ? "app" : "landing"
   );
+  
 
   return (
     <WalletContextProvider>

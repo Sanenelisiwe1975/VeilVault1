@@ -14,13 +14,13 @@ import { useIsMobile } from "../hooks";
 import { useWalletSession } from "../context/WalletSession";
 import { api } from "../lib/api";
 
-// ─── Persistence ─────────────────────────────────────────────────────────────
+//Persistence 
 
 const STORAGE_KEY = "vv_onboarded";
 export function isOnboarded() { return !!localStorage.getItem(STORAGE_KEY); }
 function markOnboarded()      { localStorage.setItem(STORAGE_KEY, "1"); }
 
-// ─── Shared helpers ───────────────────────────────────────────────────────────
+//Shared helpers 
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -47,7 +47,265 @@ const INPUT: React.CSSProperties = {
   boxSizing:    "border-box",
 };
 
-// ─── Step 1 — Identity ────────────────────────────────────────────────────────
+
+function YesNo({ value, onChange }: { value: boolean | null; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {([true, false] as const).map(opt => (
+        <button
+          key={String(opt)}
+          type="button"
+          onClick={() => onChange(opt)}
+          style={{
+            flex: 1,
+            padding: "11px",
+            borderRadius: 10,
+            border: `1.5px solid ${value === opt ? colors.primary : "rgba(255,255,255,0.1)"}`,
+            background: value === opt ? `${colors.primary}18` : colors.surfaceContainerHigh,
+            color: value === opt ? colors.primary : colors.onSurface,
+            cursor: "pointer",
+            fontSize: 14,
+            fontWeight: 700,
+            fontFamily: fontFamily.headline,
+            transition: "all 0.18s",
+          }}
+        >
+          {opt ? "Yes" : "No"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+//Step 0a — Individual profile 
+
+interface IndividualProfile {
+  ownsCrypto:     boolean | null;
+  hasBeneficiaries: boolean | null;
+  wantsLegacy:    boolean | null;
+}
+
+function IndividualProfileStep({ onNext }: { onNext: (data: IndividualProfile) => void }) {
+  const [profile, setProfile] = useState<IndividualProfile>({
+    ownsCrypto:       null,
+    hasBeneficiaries: null,
+    wantsLegacy:      null,
+  });
+
+  const complete =
+    profile.ownsCrypto !== null &&
+    profile.hasBeneficiaries !== null &&
+    profile.wantsLegacy !== null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <StepHeader
+        icon="person"
+        iconBg={`linear-gradient(135deg, ${colors.primaryContainer}55, ${colors.primary}22)`}
+        iconColor={colors.primary}
+        title="Tell us about yourself"
+        subtitle="Three quick questions to personalise your vault."
+      />
+
+      <Field label="1. Do you own cryptocurrency?">
+        <YesNo value={profile.ownsCrypto} onChange={v => setProfile(p => ({ ...p, ownsCrypto: v }))} />
+      </Field>
+
+      <Field label="2. Do you have beneficiaries?">
+        <YesNo value={profile.hasBeneficiaries} onChange={v => setProfile(p => ({ ...p, hasBeneficiaries: v }))} />
+      </Field>
+
+      <Field label="3. Would you like to create a digital legacy plan?">
+        <YesNo value={profile.wantsLegacy} onChange={v => setProfile(p => ({ ...p, wantsLegacy: v }))} />
+      </Field>
+
+      <GradientButton onClick={() => onNext(profile)} disabled={!complete} size="lg">
+        Continue →
+      </GradientButton>
+    </div>
+  );
+}
+
+//Step 0b — Stokvel profile 
+
+interface StokvelProfile {
+  memberCount:    string;
+  monthlyAmount:  string;
+  admins:         string;
+  managesCrypto:  boolean | null;
+}
+
+function StokvelProfileStep({ onNext }: { onNext: (data: StokvelProfile) => void }) {
+  const [profile, setProfile] = useState<StokvelProfile>({
+    memberCount:   "",
+    monthlyAmount: "",
+    admins:        "",
+    managesCrypto: null,
+  });
+
+  const complete =
+    profile.memberCount.trim() !== "" &&
+    profile.monthlyAmount.trim() !== "" &&
+    profile.admins.trim() !== "" &&
+    profile.managesCrypto !== null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <StepHeader
+        icon="groups"
+        iconBg={`linear-gradient(135deg, ${colors.tertiary}33, ${colors.primaryContainer}44)`}
+        iconColor={colors.tertiary}
+        title="Set up your Stokvel"
+        subtitle="Tell us about your group so we configure the right controls."
+      />
+
+      <Field label="1. Number of members">
+        <input
+          style={INPUT}
+          type="number"
+          min={2}
+          placeholder="e.g. 12"
+          value={profile.memberCount}
+          onChange={e => setProfile(p => ({ ...p, memberCount: e.target.value }))}
+        />
+      </Field>
+
+      <Field label="2. Monthly contribution amount (ZAR or XLM)">
+        <input
+          style={INPUT}
+          type="number"
+          min={1}
+          placeholder="e.g. 500"
+          value={profile.monthlyAmount}
+          onChange={e => setProfile(p => ({ ...p, monthlyAmount: e.target.value }))}
+        />
+      </Field>
+
+      <Field label="3. Who are the administrators?" hint="Names or wallet addresses, comma-separated">
+        <input
+          style={INPUT}
+          placeholder="e.g. Thandi M., Sipho K."
+          value={profile.admins}
+          onChange={e => setProfile(p => ({ ...p, admins: e.target.value }))}
+        />
+      </Field>
+
+      <Field label="4. Do you manage crypto investments?">
+        <YesNo value={profile.managesCrypto} onChange={v => setProfile(p => ({ ...p, managesCrypto: v }))} />
+      </Field>
+
+      <GradientButton onClick={() => onNext(profile)} disabled={!complete} size="lg">
+        Continue →
+      </GradientButton>
+    </div>
+  );
+}
+
+// ─── Step 0c — Business profile ───────────────────────────────────────────────
+
+type CompanySize = "1–10" | "11–50" | "51–200" | "200+";
+const COMPANY_SIZES: CompanySize[] = ["1–10", "11–50", "51–200", "200+"];
+
+interface BusinessProfile {
+  companySize:       CompanySize | null;
+  employeeCount:     string;
+  manageTreasury:    boolean | null;
+  needsSuccession:   boolean | null;
+}
+
+function BusinessProfileStep({ onNext }: { onNext: (data: BusinessProfile) => void }) {
+  const [profile, setProfile] = useState<BusinessProfile>({
+    companySize:     null,
+    employeeCount:   "",
+    manageTreasury:  null,
+    needsSuccession: null,
+  });
+
+  const complete =
+    profile.companySize !== null &&
+    profile.employeeCount.trim() !== "" &&
+    profile.manageTreasury !== null &&
+    profile.needsSuccession !== null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <StepHeader
+        icon="business"
+        iconBg={`linear-gradient(135deg, #10B98133, ${colors.primaryContainer}44)`}
+        iconColor="#10B981"
+        title="Configure your business vault"
+        subtitle="A few details help us set the right governance controls."
+      />
+
+      <Field label="1. Company size">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
+          {COMPANY_SIZES.map(size => (
+            <button
+              key={size}
+              type="button"
+              onClick={() => setProfile(p => ({ ...p, companySize: size }))}
+              style={{
+                padding: "11px 6px",
+                borderRadius: 10,
+                border: `1.5px solid ${profile.companySize === size ? "#10B981" : "rgba(255,255,255,0.1)"}`,
+                background: profile.companySize === size ? "#10B98118" : colors.surfaceContainerHigh,
+                color: profile.companySize === size ? "#10B981" : colors.onSurface,
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: fontFamily.headline,
+                transition: "all 0.18s",
+              }}
+            >
+              {size}
+            </button>
+          ))}
+        </div>
+      </Field>
+
+      <Field label="2. Number of employees">
+        <input
+          style={INPUT}
+          type="number"
+          min={1}
+          placeholder="e.g. 25"
+          value={profile.employeeCount}
+          onChange={e => setProfile(p => ({ ...p, employeeCount: e.target.value }))}
+        />
+      </Field>
+
+      <Field label="3. Do you manage treasury wallets?">
+        <YesNo value={profile.manageTreasury} onChange={v => setProfile(p => ({ ...p, manageTreasury: v }))} />
+      </Field>
+
+      <Field label="4. Do you need succession planning?">
+        <YesNo value={profile.needsSuccession} onChange={v => setProfile(p => ({ ...p, needsSuccession: v }))} />
+      </Field>
+
+      <GradientButton onClick={() => onNext(profile)} disabled={!complete} size="lg">
+        Continue →
+      </GradientButton>
+    </div>
+  );
+}
+
+//Shared step header 
+
+function StepHeader({ icon, iconBg, iconColor, title, subtitle }: {
+  icon: string; iconBg: string; iconColor: string; title: string; subtitle: string;
+}) {
+  return (
+    <div style={{ textAlign: "center", marginBottom: 4 }}>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", background: iconBg, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+        <MaterialIcon name={icon} size={32} style={{ color: iconColor }} />
+      </div>
+      <h2 style={{ color: colors.onSurface, fontFamily: fontFamily.headline, fontSize: 22, margin: "0 0 8px" }}>{title}</h2>
+      <p style={{ color: colors.outline, fontSize: 14, margin: 0, lineHeight: 1.5 }}>{subtitle}</p>
+    </div>
+  );
+}
+
+//Step 1 — Identity 
 
 function IdentityStep({ onNext }: { onNext: (data: { name: string; address: string }) => void }) {
   const { connect, address: sessionAddress, secretKey } = useWalletSession();
@@ -91,15 +349,13 @@ function IdentityStep({ onNext }: { onNext: (data: { name: string; address: stri
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${colors.primaryContainer}55, ${colors.tertiary}33)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <MaterialIcon name="badge" size={32} style={{ color: colors.primary }} />
-        </div>
-        <h2 style={{ color: colors.onSurface, fontFamily: fontFamily.headline, fontSize: 22, margin: "0 0 8px" }}>Create your ZK Identity</h2>
-        <p style={{ color: colors.outline, fontSize: 14, margin: 0, lineHeight: 1.5 }}>
-          Your identity is private by default. Only you control what you share.
-        </p>
-      </div>
+      <StepHeader
+        icon="badge"
+        iconBg={`linear-gradient(135deg, ${colors.primaryContainer}55, ${colors.tertiary}33)`}
+        iconColor={colors.primary}
+        title="Create your ZK Identity"
+        subtitle="Your identity is private by default. Only you control what you share."
+      />      
 
       <Field label="Display name">
         <input style={INPUT} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Siphe M." autoFocus />
@@ -157,13 +413,13 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${colors.secondaryContainer}55, ${colors.primary}22)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <MaterialIcon name="account_balance_wallet" size={32} style={{ color: colors.primary }} />
-        </div>
-        <h2 style={{ color: colors.onSurface, fontFamily: fontFamily.headline, fontSize: 22, margin: "0 0 8px" }}>Create your Vault</h2>
-        <p style={{ color: colors.outline, fontSize: 14, margin: 0 }}>Set guardrails that AI agents can never exceed.</p>
-      </div>
+      <StepHeader
+        icon="account_balance_wallet"
+        iconBg={`linear-gradient(135deg, ${colors.secondaryContainer}55, ${colors.primary}22)`}
+        iconColor={colors.primary}
+        title="Create your Vault"
+        subtitle="Set guardrails that AI agents can never exceed."
+      />
 
       <Field label="Vault name">
         <input style={INPUT} value={vaultName} onChange={e => setVaultName(e.target.value)} placeholder="e.g. My Savings Vault" autoFocus />
@@ -191,7 +447,7 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
   );
 }
 
-// ─── Step 3 — Deposit ─────────────────────────────────────────────────────────
+//Step 3 — Deposit 
 
 function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onSkip: () => void }) {
   const { address, secretKey } = useWalletSession();
@@ -223,13 +479,13 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${colors.tertiary}33, ${colors.primaryContainer}44)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <MaterialIcon name="south_america" size={32} style={{ color: colors.tertiary }} />
-        </div>
-        <h2 style={{ color: colors.onSurface, fontFamily: fontFamily.headline, fontSize: 22, margin: "0 0 8px" }}>Make your first deposit</h2>
-        <p style={{ color: colors.outline, fontSize: 14, margin: 0 }}>Start earning yield instantly. You can always add more later.</p>
-      </div>
+      <StepHeader
+        icon="south_america"
+        iconBg={`linear-gradient(135deg, ${colors.tertiary}33, ${colors.primaryContainer}44)`}
+        iconColor={colors.tertiary}
+        title="Make your first deposit"
+        subtitle="Start earning yield instantly. You can always add more later."
+      />
 
       <Field label="Asset">
         <div style={{ display: "flex", gap: 8 }}>
@@ -272,7 +528,7 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
   );
 }
 
-// ─── Step 4 — Agent or Stokvel ────────────────────────────────────────────────
+// Step 4 — Agent or Stokvel 
 
 function ChooseStep({ onNext }: { onNext: (choice: "agent" | "stokvel" | "skip") => void }) {
   const [selected, setSelected] = useState<"agent" | "stokvel" | null>(null);
@@ -296,13 +552,13 @@ function ChooseStep({ onNext }: { onNext: (choice: "agent" | "stokvel" | "skip")
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      <div style={{ textAlign: "center", marginBottom: 8 }}>
-        <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${colors.primaryContainer}44, ${colors.tertiary}22)`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-          <MaterialIcon name="explore" size={32} style={{ color: colors.primary }} />
-        </div>
-        <h2 style={{ color: colors.onSurface, fontFamily: fontFamily.headline, fontSize: 22, margin: "0 0 8px" }}>How do you want to grow?</h2>
-        <p style={{ color: colors.outline, fontSize: 14, margin: 0 }}>You can always do both — choose one to start.</p>
-      </div>
+      <StepHeader
+        icon="explore"
+        iconBg={`linear-gradient(135deg, ${colors.primaryContainer}44, ${colors.tertiary}22)`}
+        iconColor={colors.primary}
+        title="How do you want to grow?"
+        subtitle="You can always do both — choose one to start."
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {CARDS.map(c => (
@@ -335,7 +591,7 @@ function ChooseStep({ onNext }: { onNext: (choice: "agent" | "stokvel" | "skip")
   );
 }
 
-// ─── Step 5 — Done ────────────────────────────────────────────────────────────
+// Step 5 — Done 
 
 function DoneStep({ data, onFinish }: {
   data: { name: string; vaultName: string; deposit: number; choice: string };
@@ -388,7 +644,7 @@ function DoneStep({ data, onFinish }: {
   );
 }
 
-// ─── Main Wizard ──────────────────────────────────────────────────────────────
+// Main Wizard 
 
 const STEPS = [
   { label: "Identity",  icon: "badge"                  },
@@ -400,6 +656,7 @@ const STEPS = [
 
 export const OnboardingFlow: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
   const isMobile = useIsMobile();
+
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     name:      "",
@@ -412,19 +669,59 @@ export const OnboardingFlow: React.FC<{ onComplete: () => void }> = ({ onComplet
 
   const finish = () => { markOnboarded(); onComplete(); };
 
+  const renderProfileStep = () => {
+    if (userType === "individual") {
+      return (
+        <IndividualProfileStep
+          onNext={profile => {
+            // Store profile answers alongside wizard data if needed
+            setData(v => ({ ...v, ...profile }));
+            setStep(1);
+          }}
+        />
+      );
+    }
+    if (userType === "stokvel") {
+      return (
+        <StokvelProfileStep
+          onNext={profile => {
+            setData(v => ({ ...v, ...profile }));
+            setStep(1);
+          }}
+        />
+      );
+    }
+    if (userType === "business") {
+      return (
+        <BusinessProfileStep
+          onNext={profile => {
+            setData(v => ({ ...v, ...profile }));
+            setStep(1);
+          }}
+        />
+      );
+    }
+    // Fallback — no userType set, skip straight to identity
+    setStep(1);
+    return null;
+  };
+
+
   const renderStep = () => {
     switch (step) {
-      case 0: return <IdentityStep onNext={d => { setData(v => ({ ...v, ...d })); setStep(1); }} />;
-      case 1: return <VaultStep    onNext={d => { setData(v => ({ ...v, ...d })); setStep(2); }} />;
-      case 2: return <DepositStep  onNext={amt => { setData(v => ({ ...v, deposit: amt })); setStep(3); }} onSkip={() => setStep(3)} />;
-      case 3: return <ChooseStep   onNext={c => { setData(v => ({ ...v, choice: c })); setStep(4); }} />;
-      case 4: return <DoneStep     data={data} onFinish={finish} />;
+      case 0: return renderProfileStep();
+      case 1: return <IdentityStep onNext={d => { setData(v => ({ ...v, ...d })); setStep(1); }} />;
+      case 2: return <VaultStep    onNext={d => { setData(v => ({ ...v, ...d })); setStep(2); }} />;
+      case 3: return <DepositStep  onNext={amt => { setData(v => ({ ...v, deposit: amt })); setStep(3); }} onSkip={() => setStep(3)} />;
+      case 4: return <ChooseStep   onNext={c => { setData(v => ({ ...v, choice: c })); setStep(4); }} />;
+      case 5: return <DoneStep     data={data} onFinish={finish} />;
       default: return null;
     }
   };
 
   return (
     <div style={{ minHeight: "100vh", background: colors.surface, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: isMobile ? 16 : 24 }}>
+      
       {/* Step progress */}
       <div style={{ width: "100%", maxWidth: 480, marginBottom: 28 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0 }}>
