@@ -9,7 +9,13 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 import { Keypair } from "@stellar/stellar-sdk";
 import { fetchSep10Challenge, signSep10ChallengeWithSecret, submitSep10Token } from "../lib/stellar";
-import { registerPasskey, loginPasskey as loginPasskeyRequest } from "../lib/passkey";
+import {
+  registerPasskey,
+  loginPasskey as loginPasskeyRequest,
+  addBackupPasskey as addBackupPasskeyRequest,
+  invokePasskeyTransaction,
+  type ScValArgSpec,
+} from "../lib/passkey";
 import { setSessionToken } from "../lib/api";
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
@@ -30,10 +36,19 @@ interface WalletSessionCtx {
   connectFreighter: () => Promise<{ address: string } | { error: string }>;
   /** Register a brand-new passkey wallet (deploys a smart-wallet contract). */
   registerPasskeyWallet: (userName: string) => Promise<{ address: string } | { error: string }>;
-  /** Sign in with a previously registered passkey wallet address. */
-  loginPasskeyWallet:    (walletAddress: string) => Promise<{ address: string } | { error: string }>;
-  /** Address of the last passkey wallet registered on this device, if any. */
+  /** Sign in with any passkey registered for this origin (no address needed — resolved on-chain by credential). */
+  loginPasskeyWallet:    () => Promise<{ address: string } | { error: string }>;
+  /** Address of the last passkey wallet registered on this device, if any — used only as a UX hint, not required for login. */
   storedPasskeyWallet:   string | null;
+  /** Add a backup passkey to the currently signed-in passkey wallet (recovery). Requires walletType === "passkey". */
+  addBackupPasskeyWallet: (userName: string) => Promise<{ signerIndex: number } | { error: string }>;
+  /**
+   * Authorize an arbitrary contract call as the currently signed-in passkey
+   * wallet (one WebAuthn ceremony with an existing signer). Requires
+   * walletType === "passkey" — for secret-key/Freighter wallets, build a
+   * classic transaction and use signTransaction instead.
+   */
+  invokeAsPasskeyWallet: (contractId: string, method: string, args?: ScValArgSpec[]) => Promise<{ txHash: string; result: unknown } | { error: string }>;
   /** Disconnect and clear all state. */
   disconnect:       () => void;
 
@@ -56,6 +71,8 @@ const Ctx = createContext<WalletSessionCtx>({
   registerPasskeyWallet: async () => ({ error: "no provider" }),
   loginPasskeyWallet:    async () => ({ error: "no provider" }),
   storedPasskeyWallet:   null,
+  addBackupPasskeyWallet: async () => ({ error: "no provider" }),
+  invokeAsPasskeyWallet: async () => ({ error: "no provider" }),
   disconnect:       () => {},
   signTransaction:  async () => { throw new Error("not connected"); },
   setAuthToken:     () => {},
@@ -148,9 +165,9 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     }
   }, []);
 
-  const loginPasskeyWallet = useCallback(async (walletAddress: string): Promise<{ address: string } | { error: string }> => {
+  const loginPasskeyWallet = useCallback(async (): Promise<{ address: string } | { error: string }> => {
     try {
-      const result = await loginPasskeyRequest(API_BASE, walletAddress);
+      const result = await loginPasskeyRequest(API_BASE);
       setAddress(result.walletAddress);
       setSecretKey(null);
       setWalletType("passkey");
@@ -166,6 +183,33 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
   const storedPasskeyWallet = typeof window !== "undefined"
     ? localStorage.getItem(PASSKEY_WALLET_STORAGE_KEY)
     : null;
+
+  const addBackupPasskeyWallet = useCallback(async (userName: string): Promise<{ signerIndex: number } | { error: string }> => {
+    if (walletType !== "passkey") {
+      return { error: "Only passkey wallets can add a backup passkey." };
+    }
+    try {
+      const result = await addBackupPasskeyRequest(userName);
+      return { signerIndex: result.signerIndex };
+    } catch (e) {
+      return { error: `Adding backup passkey failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }, [walletType]);
+
+  const invokeAsPasskeyWallet = useCallback(async (
+    contractId: string,
+    method: string,
+    args?: ScValArgSpec[],
+  ): Promise<{ txHash: string; result: unknown } | { error: string }> => {
+    if (walletType !== "passkey") {
+      return { error: "Only passkey wallets can authorize a transaction this way." };
+    }
+    try {
+      return await invokePasskeyTransaction(contractId, method, args);
+    } catch (e) {
+      return { error: `Passkey transaction failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
+  }, [walletType]);
 
   // ── Disconnect ─────────────────────────────────────────────────────────────
 
@@ -197,12 +241,13 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     }
 
     if (walletType === "passkey") {
-      // Signing in is fully supported (issues a session JWT, no transaction
-      // involved). Authorizing an actual on-chain transaction as a passkey
-      // wallet requires a WebAuthn ceremony per-transaction plus DER/low-S
-      // signature normalization before submitting to the smart-wallet
-      // contract's __check_auth — not yet wired up.
-      throw new Error("Signing transactions with a passkey wallet isn't supported yet — sign in is.");
+      // Passkey wallets have no Ed25519 keypair, so there's no equivalent of
+      // "sign this pre-built classic XDR and hand back a signed XDR" — the
+      // wallet's auth is a Soroban SorobanAuthorizationEntry signature, not a
+      // transaction-envelope signature, and someone else (the backend) always
+      // pays the base fee. Use invokeAsPasskeyWallet(contractId, method, args)
+      // instead, which drives that whole prepare/sign/submit flow itself.
+      throw new Error("Passkey wallets can't sign a pre-built XDR — use invokeAsPasskeyWallet instead.");
     }
 
     throw new Error("Wallet not connected");
@@ -212,6 +257,7 @@ export function WalletSessionProvider({ children }: { children: React.ReactNode 
     <Ctx.Provider value={{
       address, secretKey, walletType, isConnected: !!address, authToken,
       connect, connectFreighter, registerPasskeyWallet, loginPasskeyWallet, storedPasskeyWallet,
+      addBackupPasskeyWallet, invokeAsPasskeyWallet,
       disconnect, signTransaction, setAuthToken,
     }}>
       {children}
