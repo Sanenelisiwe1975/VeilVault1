@@ -36,10 +36,9 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
   };
 
   const handlePasskeyLogin = async () => {
-    if (!storedPasskeyWallet) return;
     setLoading(true);
     setError("");
-    const result = await loginPasskeyWallet(storedPasskeyWallet);
+    const result = await loginPasskeyWallet();
     setLoading(false);
     if ("error" in result) { setError(result.error); return; }
     onConnected?.(result.address);
