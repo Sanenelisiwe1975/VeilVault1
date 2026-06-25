@@ -6,13 +6,15 @@ VeilVault enables users and autonomous AI agents to safely deploy capital across
 
 At the core is a single shared yield engine (`vault`) with on-chain guardrails. Three independent products draw on that same engine: **individual deposits** (any user, direct yield), the **strategy marketplace** (third-party strategies executing against vault capital), and **stokvel** (group savings with M-of-N payout approval). Stokvel is one consumer of the vault, not the platform itself.
 
+See [ROADMAP.md](ROADMAP.md) for what's built today versus what's next (security audit, mainnet, agent pilots, sustainability).
+
 ---
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                              VeilVault1                                  │
+│                              VeilVault                                  │
 │                                                                          │
 │  ┌─────────────┐   ┌──────────────┐   ┌──────────────┐  ┌────────────┐ │
 │  │  Frontend   │   │   Backend    │   │     SDK      │  │   Prover   │ │
@@ -278,9 +280,16 @@ Because the request/response shapes follow the SEP-10 spec, any standard Stellar
 
 For local development, the static key below works on every endpoint without running the SEP-10 flow.
 
+VeilVault1 deliberately has **two separate identity models**, one per audience, not one unfinished story:
+
+- **Human end-users** authenticate with a Stellar keypair (secret key / Freighter / Lobstr) via SEP-10 above, or with a **passkey** (see below) — no seed phrase, biometric-backed, with on-chain recovery. This is the frontend's onboarding path.
+- **AI agents** operating through the SDK (`/sdk`, see [TypeScript SDK](#5-typescript-sdk-sdk)) hold a classic Stellar keypair directly — appropriate for a non-interactive, headless process that can't tap a fingerprint sensor — and can additionally use **Ika dWallet** (MPC, see `dwallet-verifier`) for cross-chain signing needs. Passkey wallets are not yet wired into the agent SDK, and don't need to be: an autonomous agent has no biometric device to authorize a WebAuthn ceremony with.
+
 ### Account abstraction (passkey sign-in)
 
 As an alternative to a Stellar keypair, users can sign in with a device passkey (Face ID, fingerprint, Windows Hello) — no secret key, no browser extension. Registering a passkey deploys a `smart-wallet` Soroban contract instance bound to the passkey's secp256r1 public key; that contract's address **is** the wallet address. The contract implements Soroban's native `CustomAccountInterface`, so `__check_auth` verifies a WebAuthn assertion (`authenticatorData` + `clientDataJSON` + signature) directly on-chain instead of an Ed25519 signature — see [contracts/smart-wallet](contracts/smart-wallet).
+
+Want to see it run end to end against live testnet without setting up a browser/authenticator? `cd backend && npx ts-node scripts/demo-passkey-wallet.ts` starts the real backend in-process and walks through register → add a backup passkey (recovery) → remove a signer via the generic transaction endpoint — all real Soroban transactions, all through the production HTTP API.
 
 1. `POST /api/auth/passkey/register/options { userName }` → WebAuthn registration options
 2. Browser calls `navigator.credentials.create()` (via `@simplewebauthn/browser`)
@@ -289,7 +298,9 @@ As an alternative to a Stellar keypair, users can sign in with a device passkey 
 
 **Recovery (add backup passkey):** a wallet isn't limited to one passkey. `POST /api/passkey/signers/add/options` (authenticated — the wallet is read from the caller's own session, not the request body) starts registering a new backup passkey; `POST /api/passkey/signers/add/register-verify` verifies it and returns a second WebAuthn challenge — this one *is* the exact hash of the on-chain `add_signer` authorization, so signing it with an **existing** passkey on the same wallet is what authorizes adding the new one; `POST /api/passkey/signers/add/authorize` submits that on-chain and registers the new credential in passkey-registry. This is a real Soroban transaction: the backend builds the `SorobanAuthorizationEntry` manually (the SDK's own auth helpers only support classic Ed25519 accounts), DER-decodes and low-S-normalizes the browser's raw ECDSA signature (Soroban's `secp256r1_verify` rejects non-canonical signatures), and re-simulates after the signature is attached so the resource budget reflects the real cost of running `__check_auth` rather than the cheaper "recording" estimate from before a signature existed. Verified end to end against live testnet via `backend/scripts/validate-passkey-tx-auth.ts`. Adding or removing a signer requires the wallet's own on-chain auth (an existing signer's WebAuthn assertion), so only someone who already controls the wallet can do it.
 
-**Scope note:** sign-in, the on-chain multi-signer primitive, and authorizing a passkey-wallet transaction for `add_signer` specifically are all implemented, tested, and validated against live testnet. What's *not* wired up: a *general* signing path for arbitrary transactions (e.g. payments/deposits) as a passkey wallet — `WalletSession.signTransaction` still throws for `walletType === "passkey"` outside of the two flows above. The authorization-entry construction in `StellarClient.prepareAuthorizedInvocation`/`submitAuthorizedInvocation` is already invocation-agnostic, so extending it to other contract calls is mostly plumbing, not new cryptography.
+**General transaction authorization:** `POST /api/passkey/tx/prepare { contractId, method, args }` (authenticated — `authAddress` is always the caller's own wallet from the session, never client-supplied) simulates *any* contract call requiring that wallet's auth and returns a WebAuthn challenge; `POST /api/passkey/tx/submit { sessionId, response }` submits it once an existing passkey signs that challenge. `args` are typed (`u32` / `u64` / `i128` / `bytes` / `address` / `string` / `symbol` / `bool` — see `backend/src/utils/scval-args.ts`), built into ScVals server-side rather than trusting client-supplied XDR. On the frontend, `WalletSession.invokeAsPasskeyWallet(contractId, method, args)` drives the whole WebAuthn ceremony. This isn't a separate mechanism from add-backup-passkey — `add_signer`'s own routes are themselves now thin wrappers around the same `startPasskeyTransaction` / `finishPasskeyTransaction` core in `passkey.service.ts`, proven generic by also driving `remove_signer` (a different method, different arg type) through it end to end against live testnet.
+
+**Scope note:** sign-in, the on-chain multi-signer primitive, and authorizing arbitrary passkey-wallet transactions (not just `add_signer`) are all implemented, tested, and validated against live testnet. `WalletSession.signTransaction` (the classic pre-built-XDR signing path used by secret-key/Freighter wallets) still throws for `walletType === "passkey"` — that's intentional, not a gap: passkey wallets have no Ed25519 keypair, so there's no equivalent of "sign this XDR and hand back a signed XDR." Other app flows (privacy-pool deposits, stokvel votes, etc.) that currently build a classic transaction and call `signTransaction` would need a passkey-specific branch calling `invokeAsPasskeyWallet` instead to support passkey wallets — that integration work, not the underlying authorization mechanism, is what's left.
 
 ## API Reference
 
