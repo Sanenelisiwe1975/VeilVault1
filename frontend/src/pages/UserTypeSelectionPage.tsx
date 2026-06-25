@@ -10,7 +10,7 @@ interface Props {
   onSelect?: () => void;
 }
 
-interface Usercard {
+interface UserCard {
     type : UserType;
     icon: string;
     label: string;
@@ -25,7 +25,7 @@ const USER_CARDS: UserCard[] = [
         description: "Manage personal assets and digital inheritance",
     },
     {
-        type: "stockvel",
+        type: "stokvel",
         icon: "🤝",
         label: "Stokvel",
         description: "Manage collective savings and governance",
