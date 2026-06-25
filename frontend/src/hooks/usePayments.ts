@@ -55,7 +55,7 @@ export const CORRIDORS: Corridor[] = [
   { from: "XLM", to: "ETB", flag: "🇪🇹", rate: 38,    fee: "< 0.001 XLM", time: "< 5s",  popular: false },
 ];
 
-// ─── Local storage ────────────────────────────────────────────────────────────
+// Local storage 
 
 const PAY_KEY = "vv_payments";
 const REC_KEY = "vv_recurring";
@@ -64,7 +64,7 @@ function loadPayments():   Payment[]          { try { return JSON.parse(localSto
 function loadRecurring():  RecurringPayment[] { try { return JSON.parse(localStorage.getItem(REC_KEY) ?? "[]"); } catch { return []; } }
 function save(key: string, data: unknown)     { localStorage.setItem(key, JSON.stringify(data)); }
 
-// ─── Mock history ─────────────────────────────────────────────────────────────
+// Mock history 
 
 const MOCK_HISTORY: Payment[] = [
   { id: "1", direction: "sent",     recipient: "GBTCO...XK7P", amount: "100000000", asset: "XLM",  memo: "Rent",         txHash: "abc123", status: "confirmed", createdAt: Date.now()/1000 - 86400*2, private: false },
@@ -73,7 +73,7 @@ const MOCK_HISTORY: Payment[] = [
   { id: "4", direction: "sent",     recipient: "+27811234567",  amount: "25000000",  asset: "XLM",  memo: "Grocery money",txHash: "jkl012", status: "confirmed", createdAt: Date.now()/1000 - 86400*12, private: false},
 ];
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// Hook 
 
 export function usePayments() {
   const { address, secretKey, walletType, signTransaction } = useWalletSession();
