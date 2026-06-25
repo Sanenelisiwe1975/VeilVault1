@@ -29,6 +29,15 @@
  * `submitAuthorizedInvocation` for how that's built, and `utils/ecdsa.ts`
  * for the DER-decode + low-S normalization the browser's raw signature needs
  * before Soroban's `secp256r1_verify` will accept it.
+ *
+ * `startPasskeyTransaction` / `finishPasskeyTransaction` generalize that same
+ * mechanism to *any* contract call, not just `add_signer` — the caller names
+ * a contract, method, and typed args (see `utils/scval-args.ts`), and gets
+ * back a WebAuthn challenge to sign with any of the wallet's registered
+ * passkeys. `verifyBackupPasskeyRegistration` / `finishAddBackupPasskey` are
+ * themselves now thin wrappers around the same prepare/authorize/submit core
+ * (`resolveAuthorizingSignature` below) plus the extra step of registering
+ * the new credential — proof the mechanism isn't special-cased to one method.
  */
 import {
   generateRegistrationOptions,
@@ -48,6 +57,7 @@ import path from 'path';
 import { config } from '../config';
 import { getStellarClient, type PreparedAuthorization } from '../integrations/stellar/client';
 import { derToRawLowS } from '../utils/ecdsa';
+import { buildArgScVal, type ScValArgSpec } from '../utils/scval-args';
 import { createChildLogger } from '../utils/logger';
 
 const log = createChildLogger('passkey');
@@ -397,6 +407,78 @@ export async function startAddBackupPasskey(walletAddress: string, userName: str
   return { sessionId, options };
 }
 
+// ─── Shared prepare/authorize core ─────────────────────────────────────────
+// Both add-backup-passkey (above/below) and the generic passkey-transaction
+// flow (further below) are built on these two functions. Neither knows or
+// cares what method is being called — only that *some* wallet auth entry
+// needs a WebAuthn-backed signature.
+
+/** Simulate `contractId.method(...args)`, requiring the wallet's own auth, and turn the resulting payload hash into a WebAuthn challenge for an existing signer to sign. */
+async function prepareInvocationChallenge(
+  walletAddress: string,
+  contractId: string,
+  method: string,
+  args: import('@stellar/stellar-sdk').xdr.ScVal[],
+): Promise<{ prepared: PreparedAuthorization; challenge: string; options: Awaited<ReturnType<typeof generateAuthenticationOptions>> }> {
+  const adminPublicKey = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
+  const prepared = await getStellarClient().prepareAuthorizedInvocation({
+    contractId,
+    method,
+    args,
+    authAddress: walletAddress,
+    feePayerPublicKey: adminPublicKey,
+  });
+
+  const options = await generateAuthenticationOptions({
+    rpID: config.WEBAUTHN_RP_ID,
+    userVerification: 'preferred',
+    // The challenge an EXISTING signer must sign is the exact 32-byte hash
+    // Soroban will check against — not a random value generated for its own sake.
+    challenge: new Uint8Array(prepared.payloadHash),
+  });
+
+  return { prepared, challenge: options.challenge, options };
+}
+
+/** Resolve which registered signer produced `response`, verify it off-chain, and build the on-chain WebAuthnSignature ScVal. Throws if the assertion doesn't belong to `walletAddress` or doesn't verify. */
+async function resolveAuthorizingSignature(
+  walletAddress: string,
+  challenge: string,
+  response: AuthenticationResponseJSON,
+): Promise<{ signatureScVal: ReturnType<typeof buildWebAuthnSignatureScVal> }> {
+  const authCredentialIdHash = hashCredentialId(response.id);
+  const authRecord = await registryResolve(authCredentialIdHash);
+  if (!authRecord || authRecord.wallet !== walletAddress) {
+    throw new Error('Authorizing passkey does not belong to this wallet');
+  }
+
+  // Verify off-chain first — fail fast with a clear error instead of an
+  // opaque on-chain trap if the signature or challenge is wrong.
+  const verification = await verifyAuthenticationResponse({
+    response,
+    expectedChallenge: challenge,
+    expectedOrigin: config.WEBAUTHN_ORIGIN,
+    expectedRPID: config.WEBAUTHN_RP_ID,
+    credential: {
+      id: response.id,
+      publicKey: new Uint8Array(authRecord.publicKeyCose),
+      counter: authRecord.counter,
+    },
+  });
+  if (!verification.verified) {
+    throw new Error('Authorization signature invalid');
+  }
+  await registryUpdateCounter(authCredentialIdHash, verification.authenticationInfo.newCounter);
+
+  const signatureScVal = buildWebAuthnSignatureScVal({
+    signerIndex: authRecord.signerIndex,
+    authenticatorData: Buffer.from(response.response.authenticatorData, 'base64url'),
+    clientDataJson: Buffer.from(response.response.clientDataJSON, 'base64url'),
+    signature: derToRawLowS(Buffer.from(response.response.signature, 'base64url')),
+  });
+  return { signatureScVal };
+}
+
 /**
  * Step 2: verify the new backup credential's attestation, then prepare the
  * on-chain `add_signer` call and hand back a WebAuthn AUTHENTICATION
@@ -432,34 +514,24 @@ export async function verifyBackupPasskeyRegistration(
     throw new Error('Unsupported passkey public key format (expected uncompressed secp256r1)');
   }
 
-  const adminPublicKey = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
-  const prepared = await getStellarClient().prepareAuthorizedInvocation({
-    contractId: pending.walletAddress,
-    method: 'add_signer',
-    args: [nativeToScVal(publicKeySec1, { type: 'bytes' })],
-    authAddress: pending.walletAddress,
-    feePayerPublicKey: adminPublicKey,
-  });
-
-  const authOptions = await generateAuthenticationOptions({
-    rpID: config.WEBAUTHN_RP_ID,
-    userVerification: 'preferred',
-    // The challenge an EXISTING signer must sign is the exact 32-byte hash
-    // Soroban will check against — not a random value generated for its own sake.
-    challenge: new Uint8Array(prepared.payloadHash),
-  });
+  const { prepared, challenge, options } = await prepareInvocationChallenge(
+    pending.walletAddress,
+    pending.walletAddress,
+    'add_signer',
+    [nativeToScVal(publicKeySec1, { type: 'bytes' })],
+  );
 
   pendingAddSigner.set(sessionId, {
     stage: 'authorize',
     walletAddress: pending.walletAddress,
-    challenge: authOptions.challenge,
+    challenge,
     expiresAt: Date.now() + CHALLENGE_TTL_MS,
     newCredentialId: credential.id,
     newPublicKeyCose: publicKeyCose,
     prepared,
   });
 
-  return { sessionId, options: authOptions };
+  return { sessionId, options };
 }
 
 /** Step 3: an existing signer authorizes adding the new backup passkey; submit on-chain and register it. */
@@ -474,38 +546,7 @@ export async function finishAddBackupPasskey(
   }
   pendingAddSigner.delete(sessionId);
 
-  // Resolve which EXISTING credential is authorizing this, and confirm it
-  // actually belongs to the wallet being modified.
-  const authCredentialIdHash = hashCredentialId(response.id);
-  const authRecord = await registryResolve(authCredentialIdHash);
-  if (!authRecord || authRecord.wallet !== pending.walletAddress) {
-    throw new Error('Authorizing passkey does not belong to this wallet');
-  }
-
-  // Verify off-chain first — fail fast with a clear error instead of an
-  // opaque on-chain trap if the signature or challenge is wrong.
-  const verification = await verifyAuthenticationResponse({
-    response,
-    expectedChallenge: pending.challenge,
-    expectedOrigin: config.WEBAUTHN_ORIGIN,
-    expectedRPID: config.WEBAUTHN_RP_ID,
-    credential: {
-      id: response.id,
-      publicKey: new Uint8Array(authRecord.publicKeyCose),
-      counter: authRecord.counter,
-    },
-  });
-  if (!verification.verified) {
-    throw new Error('Authorization signature invalid');
-  }
-  await registryUpdateCounter(authCredentialIdHash, verification.authenticationInfo.newCounter);
-
-  const signatureScVal = buildWebAuthnSignatureScVal({
-    signerIndex: authRecord.signerIndex,
-    authenticatorData: Buffer.from(response.response.authenticatorData, 'base64url'),
-    clientDataJson: Buffer.from(response.response.clientDataJSON, 'base64url'),
-    signature: derToRawLowS(Buffer.from(response.response.signature, 'base64url')),
-  });
+  const { signatureScVal } = await resolveAuthorizingSignature(pending.walletAddress, pending.challenge, response);
 
   await getStellarClient().submitAuthorizedInvocation({
     prepared: pending.prepared,
@@ -521,6 +562,70 @@ export async function finishAddBackupPasskey(
 
   log.info({ walletAddress: pending.walletAddress, newSignerIndex }, 'Backup passkey added');
   return { success: true, signerIndex: newSignerIndex };
+}
+
+// ─── Generic passkey-authorized transactions ───────────────────────────────
+// Same prepare/authorize/submit mechanism as add-backup-passkey above, but
+// for *any* contract call — the caller names a contract, method, and typed
+// args (see utils/scval-args.ts) instead of this module hard-coding one.
+
+interface PendingTransaction {
+  walletAddress: string;
+  challenge: string;
+  expiresAt: number;
+  prepared: PreparedAuthorization;
+}
+
+const pendingTransactions = new Map<string, PendingTransaction>();
+
+function purgeExpiredTransactions() {
+  const now = Date.now();
+  for (const [k, v] of pendingTransactions) if (v.expiresAt < now) pendingTransactions.delete(k);
+}
+
+/** Step 1: simulate the call and get back a WebAuthn challenge for an existing signer on `walletAddress` to sign. */
+export async function startPasskeyTransaction(
+  walletAddress: string,
+  contractId: string,
+  method: string,
+  argSpecs: ScValArgSpec[],
+): Promise<{ sessionId: string; options: Awaited<ReturnType<typeof generateAuthenticationOptions>> }> {
+  purgeExpiredTransactions();
+  const args = argSpecs.map(buildArgScVal);
+  const { prepared, challenge, options } = await prepareInvocationChallenge(walletAddress, contractId, method, args);
+
+  const sessionId = newSessionId();
+  pendingTransactions.set(sessionId, {
+    walletAddress,
+    challenge,
+    expiresAt: Date.now() + CHALLENGE_TTL_MS,
+    prepared,
+  });
+  return { sessionId, options };
+}
+
+/** Step 2: an existing signer authorizes the call; submit it on-chain. */
+export async function finishPasskeyTransaction(
+  sessionId: string,
+  response: AuthenticationResponseJSON,
+): Promise<{ txHash: string; result: unknown }> {
+  purgeExpiredTransactions();
+  const pending = pendingTransactions.get(sessionId);
+  if (!pending) {
+    throw new Error('Transaction session not found or expired');
+  }
+  pendingTransactions.delete(sessionId);
+
+  const { signatureScVal } = await resolveAuthorizingSignature(pending.walletAddress, pending.challenge, response);
+
+  const { txHash, result } = await getStellarClient().submitAuthorizedInvocation({
+    prepared: pending.prepared,
+    signatureScVal,
+    feePayerSecretKey: config.ADMIN_SECRET_KEY,
+  });
+
+  log.info({ walletAddress: pending.walletAddress, txHash }, 'Passkey-authorized transaction submitted');
+  return { txHash, result: result ? scValToNative(result) : null };
 }
 
 // ─── Session issuance ───────────────────────────────────────────────────────
