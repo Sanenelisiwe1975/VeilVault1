@@ -2,6 +2,7 @@
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton } from "../components/ui";
 import { useIsMobile } from "../hooks";
+import { useWalletSession } from "../context/WalletSession";
 
 const PROGRAM_ID   = "CA5UAF7NF2GJMAJPPZMUYSQIDSAR7V53CYGNHULQS3UCHWKD5LW7KXQW";
 const DEVNET_RPC   = "https://soroban-testnet.stellar.org";
@@ -63,6 +64,7 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
 
 export const SettingsPage: React.FC = () => {
   const isMobile = useIsMobile();
+  const { walletType, addBackupPasskeyWallet } = useWalletSession();
 
   const [customRpc,       setCustomRpc]       = useState("");
   const [useCustomRpc,    setUseCustomRpc]     = useState(false);
@@ -70,6 +72,23 @@ export const SettingsPage: React.FC = () => {
   const [reduceMotion,    setReduceMotion]     = useState(false);
   const [notifications,   setNotifications]    = useState(true);
   const [cleared,         setCleared]          = useState(false);
+
+  const [backupName,      setBackupName]       = useState("");
+  const [backupLoading,   setBackupLoading]    = useState(false);
+  const [backupError,     setBackupError]      = useState("");
+  const [backupSuccess,   setBackupSuccess]    = useState<number | null>(null);
+
+  const handleAddBackupPasskey = async () => {
+    if (!backupName.trim()) { setBackupError("Enter a name for this backup passkey first."); return; }
+    setBackupLoading(true);
+    setBackupError("");
+    setBackupSuccess(null);
+    const result = await addBackupPasskeyWallet(backupName.trim());
+    setBackupLoading(false);
+    if ("error" in result) { setBackupError(result.error); return; }
+    setBackupSuccess(result.signerIndex);
+    setBackupName("");
+  };
 
   const handleClearData = () => {
     const keys = Object.keys(localStorage).filter(k => k.startsWith("vv-"));
@@ -137,6 +156,52 @@ export const SettingsPage: React.FC = () => {
           </span>
         </Row>
       </Section>
+
+      {/* — Wallet (passkey recovery) — */}
+      {walletType === "passkey" && (
+        <Section title="Wallet">
+          <div style={{ padding: "16px 20px" }}>
+            <p style={{ fontSize: 12, color: colors.onSurfaceVariant, marginBottom: 14, lineHeight: 1.6 }}>
+              Add a backup passkey (a second device, or one kept somewhere safe) so losing one device doesn't mean losing this wallet.
+              You'll be asked to create the new passkey, then confirm with your current one.
+            </p>
+
+            {backupError && (
+              <div style={{ background: "#ef444418", border: "1px solid #ef444440", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", gap: 8 }}>
+                <MaterialIcon name="error" size={15} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+                <p style={{ margin: 0, fontSize: 12, color: "#ef4444" }}>{backupError}</p>
+              </div>
+            )}
+            {backupSuccess !== null && (
+              <div style={{ background: "#22c55e18", border: "1px solid #22c55e40", borderRadius: 10, padding: "10px 14px", marginBottom: 12, display: "flex", gap: 8 }}>
+                <MaterialIcon name="check_circle" size={15} style={{ color: "#22c55e", flexShrink: 0, marginTop: 1 }} />
+                <p style={{ margin: 0, fontSize: 12, color: "#22c55e" }}>Backup passkey added (signer index {backupSuccess}).</p>
+              </div>
+            )}
+
+            <input
+              type="text"
+              placeholder="e.g. my-laptop or backup-key"
+              value={backupName}
+              onChange={e => { setBackupName(e.target.value); setBackupError(""); }}
+              onKeyDown={e => e.key === "Enter" && backupName.trim() && handleAddBackupPasskey()}
+              autoComplete="off"
+              spellCheck={false}
+              style={{
+                width: "100%", background: colors.surfaceContainer,
+                border: `1px solid ${colors.outlineVariant}30`,
+                borderRadius: 8, padding: "10px 14px",
+                color: "#fff", fontSize: 13, outline: "none",
+                marginBottom: 14, boxSizing: "border-box" as const,
+              }}
+            />
+
+            <GradientButton onClick={handleAddBackupPasskey} disabled={!backupName.trim() || backupLoading} style={{ fontSize: 12 }}>
+              {backupLoading ? "Adding…" : "Add Backup Passkey →"}
+            </GradientButton>
+          </div>
+        </Section>
+      )}
 
       {/* â”€â”€ Display â”€â”€ */}
       <Section title="Display">
