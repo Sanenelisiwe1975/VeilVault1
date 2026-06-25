@@ -7,6 +7,8 @@ import { SECURITY_ITEMS } from "../../data";
  * Shows MPC node health and key-shard status.
  * Uses left-border accent lines instead of dividers (per DESIGN.md no-line rule).
  */
+
+
 export const SecurityPulse: React.FC = () => (
   <div
     style={{
