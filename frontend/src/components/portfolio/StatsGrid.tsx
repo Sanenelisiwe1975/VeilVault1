@@ -1,5 +1,6 @@
 import React from "react";
 import { colors, fontFamily } from "../../constants/theme";
+import { MaterialIcon } from "../ui";
 
 //TVL Card 
 
@@ -89,3 +90,39 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ netValueXlm, yieldXl
     </div>
   );
 };
+
+// ─── Stats Grid ──────────────────────────────────────────────────────────────
+// A row of small KPI tiles below the TVL/Net Worth cards. Demo data only for
+// now — none of the three dashboards (Individual/Business/Stokvel) pass real
+// figures in yet, matching this codebase's existing demo-fallback convention
+// (see TvlCard/NetWorthCard above).
+
+interface StatTile {
+  icon:  string;
+  label: string;
+  value: string;
+  color: string;
+}
+
+const DEMO_STATS: StatTile[] = [
+  { icon: "trending_up",     label: "30d Yield",        value: "+4.82%",  color: colors.secondary },
+  { icon: "account_balance", label: "Active Positions", value: "3",       color: colors.primary },
+  { icon: "verified_user",   label: "Guardrails",       value: "Healthy", color: "#10B981" },
+  { icon: "hub",             label: "Network",          value: "Testnet", color: "#0EA5E9" },
+];
+
+export const StatsGrid: React.FC = () => (
+  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
+    {DEMO_STATS.map(({ icon, label, value, color }) => (
+      <div key={label} style={{ background: colors.surfaceContainerLow, borderRadius: 14, padding: 18, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <MaterialIcon name={icon} size={18} style={{ color }} />
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: colors.outline, marginBottom: 2 }}>{label}</div>
+          <div style={{ fontFamily: fontFamily.headline, fontSize: 17, fontWeight: 700, color: "#fff" }}>{value}</div>
+        </div>
+      </div>
+    ))}
+  </div>
+);
