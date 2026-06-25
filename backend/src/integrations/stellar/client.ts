@@ -42,7 +42,6 @@ function sorobanReturnValue(meta: xdr.TransactionMeta): xdr.ScVal | undefined {
  */
 export interface PreparedAuthorization {
   tx: Transaction;
-  simResult: StellarRpc.Api.SimulateTransactionSuccessResponse;
   entries: xdr.SorobanAuthorizationEntry[];
   authEntryIndex: number;
   payloadHash: Buffer;
@@ -318,7 +317,7 @@ export class StellarClient {
     );
     const payloadHash = stellarHash(preimage.toXDR());
 
-    return { tx, simResult, entries, authEntryIndex, payloadHash, signatureExpirationLedger };
+    return { tx, entries, authEntryIndex, payloadHash, signatureExpirationLedger };
   }
 
   /**
@@ -348,15 +347,23 @@ export class StellarClient {
 
     const invokeOp = tx.operations[0] as Operation.InvokeHostFunction;
 
+    // The fee payer's sequence number baked into `tx` at prepare time can be
+    // stale by submit time — the WebAuthn ceremony in between is user-paced
+    // (seconds to minutes), and a shared fee-payer account (e.g. the backend's
+    // admin key, used across many users' transactions) may have advanced its
+    // sequence via unrelated transactions in the meantime. Re-load it fresh
+    // rather than cloning `tx`'s envelope, which would carry the stale one.
+    const freshAccount = await this.loadAccount(signer.publicKey());
+
     // The original simulation (prepareAuthorizedInvocation) ran before this
     // entry had a real signature, so Soroban only *recorded* that an auth
     // entry was needed here rather than actually executing __check_auth —
     // meaning its resource/instruction estimate never accounted for the real
     // cost of secp256r1_verify. Re-simulate now that the entry is complete so
     // the network enforces (not records) it and gives an accurate budget.
-    const unsizedTx = TransactionBuilder.cloneFrom(tx, { networkPassphrase: this.networkPassphrase })
-      .clearOperations()
+    const unsizedTx = new TransactionBuilder(freshAccount, { fee: tx.fee, networkPassphrase: this.networkPassphrase })
       .addOperation(Operation.invokeHostFunction({ func: invokeOp.func, auth: entries }))
+      .setTimeout(30)
       .build();
     const resim = await this.simulate(unsizedTx);
     if (StellarRpc.Api.isSimulationError(resim)) {
@@ -368,7 +375,12 @@ export class StellarClient {
 
     const response = await this.rpc.sendTransaction(rebuilt);
     if (response.status === 'ERROR') {
-      throw new Error(`submitAuthorizedInvocation submission failed: ${response.errorResult?.toString()}`);
+      const diag = response.diagnosticEvents?.map((e) => {
+        const body = e.event().body().v0();
+        return { topics: body.topics().map((t) => scValToNative(t)), data: scValToNative(body.data()) };
+      });
+      log.error({ errorResultXdr: response.errorResult?.toXDR('base64'), diag }, 'submitAuthorizedInvocation rejected at submission');
+      throw new Error(`submitAuthorizedInvocation submission failed: ${response.errorResult?.result().switch().name}`);
     }
     const confirmed = await this.waitForTransaction(response.hash);
     if (confirmed.status !== 'SUCCESS') {
