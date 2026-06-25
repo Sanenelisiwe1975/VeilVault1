@@ -4,10 +4,11 @@ import { InfoCards }    from "../../components/portfolio/InfoCards";
 import { SecurityPulse } from "../../components/portfolio/SecurityPulse";
 import { TvlCard, NetWorthCard } from "../../components/portfolio/StatsGrid";
 import { colors, fontFamily } from "../../constants/theme";
-import { useIsMobile } from "../../hooks";
+import { useIsMobile, useVault } from "../../hooks";
 
 export default function IndividualDashboard() {
   const isMobile = useIsMobile();
+  const { vault, vaultExists } = useVault();
 
   return (
     <div style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 24 }}>
@@ -24,12 +25,12 @@ export default function IndividualDashboard() {
 
       {/* Top cards row */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
-        <TvlCard />
-        <NetWorthCard />
+        <TvlCard totalAssets={vaultExists && vault ? String(Math.round(vault.netValueSol * 1e7)) : undefined} />
+        <NetWorthCard netValueXlm={vaultExists && vault ? vault.netValueSol : undefined} yieldXlm={vaultExists && vault ? vault.yieldEarnedSol : undefined} />
       </div>
 
       {/* Stats */}
-      <StatsGrid />
+      <StatsGrid yieldXlm={vaultExists && vault ? vault.yieldEarnedSol : undefined} isPaused={vaultExists && vault ? vault.isPaused : undefined} />
 
       {/* Info cards */}
       <InfoCards />

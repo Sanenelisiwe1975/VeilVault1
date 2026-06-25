@@ -5,7 +5,7 @@ import { PerformancePanel }  from "../../components/detail/Performance";
 import { TvlCard }           from "../../components/portfolio/StatsGrid";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon }      from "../../components/ui";
-import { useIsMobile }       from "../../hooks";
+import { useIsMobile, useVault } from "../../hooks";
 
 // ─── Business-specific summary card ──────────────────────────────────────────
 
@@ -49,6 +49,7 @@ function BusinessSummaryCard() {
 
 export default function BusinessDashboard() {
   const isMobile = useIsMobile();
+  const { vault, vaultExists } = useVault();
 
   return (
     <div style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 24 }}>
@@ -66,11 +67,11 @@ export default function BusinessDashboard() {
       {/* Business summary + TVL */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>
         <BusinessSummaryCard />
-        <TvlCard />
+        <TvlCard totalAssets={vaultExists && vault ? String(Math.round(vault.netValueSol * 1e7)) : undefined} />
       </div>
 
       {/* Stats */}
-      <StatsGrid />
+      <StatsGrid yieldXlm={vaultExists && vault ? vault.yieldEarnedSol : undefined} isPaused={vaultExists && vault ? vault.isPaused : undefined} />
 
       {/* Security + performance */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20 }}>

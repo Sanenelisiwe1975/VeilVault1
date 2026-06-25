@@ -4,15 +4,20 @@ import { PerformancePanel }  from "../../components/detail/Performance";
 import { InvestmentStrategy } from "../../components/detail/InvestmentStrategy";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon }      from "../../components/ui";
-import { useIsMobile }       from "../../hooks";
+import { useIsMobile, useStokvel } from "../../hooks";
 
 // ─── Stokvel-specific summary card ───────────────────────────────────────────
 
 function StokvelSummaryCard() {
-  const memberCount      = localStorage.getItem("vv_stokvel_memberCount")   ?? "—";
-  const monthlyAmount    = localStorage.getItem("vv_stokvel_monthlyAmount") ?? "—";
-  const admins           = localStorage.getItem("vv_stokvel_admins")        ?? "—";
-  const managesCrypto    = localStorage.getItem("vv_stokvel_managesCrypto");
+  const { config } = useStokvel();
+
+  // Real on-chain config once loaded; falls back to the user's own onboarding
+  // answers (localStorage) until then. "Administrators"/"Crypto managed" have
+  // no on-chain equivalent, so they stay onboarding-preference fields.
+  const memberCount   = config ? String(config.memberCount) : localStorage.getItem("vv_stokvel_memberCount") ?? "—";
+  const monthlyAmount = config ? `${(Number(config.contributionAmount) / 1e7).toLocaleString("en-ZA", { maximumFractionDigits: 2 })} XLM` : localStorage.getItem("vv_stokvel_monthlyAmount") ?? "—";
+  const admins         = localStorage.getItem("vv_stokvel_admins")        ?? "—";
+  const managesCrypto  = localStorage.getItem("vv_stokvel_managesCrypto");
 
   const rows = [
     { icon: "groups",   label: "Members",             value: memberCount               },

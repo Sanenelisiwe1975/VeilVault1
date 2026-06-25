@@ -92,10 +92,11 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ netValueXlm, yieldXl
 };
 
 // ─── Stats Grid ──────────────────────────────────────────────────────────────
-// A row of small KPI tiles below the TVL/Net Worth cards. Demo data only for
-// now — none of the three dashboards (Individual/Business/Stokvel) pass real
-// figures in yet, matching this codebase's existing demo-fallback convention
-// (see TvlCard/NetWorthCard above).
+// A row of small KPI tiles below the TVL/Net Worth cards. "Active Positions"
+// and "Network" stay demo data — there's no backend concept of "positions"
+// yet, and "Network" is just which Stellar network the app is pointed at.
+// "Yield Earned" and "Guardrails" switch to real vault data when passed in
+// (same demo-fallback convention as TvlCard/NetWorthCard above).
 
 interface StatTile {
   icon:  string;
@@ -111,9 +112,27 @@ const DEMO_STATS: StatTile[] = [
   { icon: "hub",             label: "Network",          value: "Testnet", color: "#0EA5E9" },
 ];
 
-export const StatsGrid: React.FC = () => (
+interface StatsGridProps {
+  /** Real vault yield (XLM), from useVault()'s vault.yieldEarnedSol. Falls back to a demo rate when omitted. */
+  yieldXlm?:  number;
+  /** Real vault pause state, from useVault()'s vault.isPaused. Falls back to demo "Healthy" when omitted. */
+  isPaused?:  boolean;
+}
+
+export const StatsGrid: React.FC<StatsGridProps> = ({ yieldXlm, isPaused }) => {
+  const stats: StatTile[] = DEMO_STATS.map(tile => {
+    if (tile.label === "30d Yield" && yieldXlm !== undefined) {
+      return { ...tile, label: "Yield Earned", value: `${yieldXlm.toFixed(4)} XLM` };
+    }
+    if (tile.label === "Guardrails" && isPaused !== undefined) {
+      return { ...tile, value: isPaused ? "Paused" : "Healthy", color: isPaused ? "#EF4444" : tile.color };
+    }
+    return tile;
+  });
+
+  return (
   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 16 }}>
-    {DEMO_STATS.map(({ icon, label, value, color }) => (
+    {stats.map(({ icon, label, value, color }) => (
       <div key={label} style={{ background: colors.surfaceContainerLow, borderRadius: 14, padding: 18, display: "flex", alignItems: "center", gap: 12 }}>
         <div style={{ width: 36, height: 36, borderRadius: 10, background: `${color}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <MaterialIcon name={icon} size={18} style={{ color }} />
@@ -125,4 +144,5 @@ export const StatsGrid: React.FC = () => (
       </div>
     ))}
   </div>
-);
+  );
+};
