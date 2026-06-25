@@ -118,7 +118,7 @@ function Dashboard({ onHome }: { onHome: () => void }) {
 }
 
 // Root
-type Screen = "landing" | "onboarding" | "app";
+type Screen = "landing" | "userType" | "onboarding" | "app";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>(() =>
@@ -129,7 +129,7 @@ export default function App() {
   return (
     <WalletContextProvider>
       {screen === "landing" && (
-        <LandingPage onLaunch={() => setScreen(isOnboarded() ? "app" : "onboarding")} />
+        <LandingPage onLaunch={() => setScreen(isOnboarded() ? "app" : "userType")} />
       )}
       {screen === "userType" && (
         <UserTypeSelectionPage onSelect={() => setScreen("onboarding")}
