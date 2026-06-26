@@ -712,10 +712,10 @@ export const OnboardingFlow: React.FC<{ onComplete: () => void }> = ({ onComplet
   const renderStep = () => {
     switch (step) {
       case 0: return renderProfileStep();
-      case 1: return <IdentityStep onNext={d => { setData(v => ({ ...v, ...d })); setStep(1); }} />;
-      case 2: return <VaultStep    onNext={d => { setData(v => ({ ...v, ...d })); setStep(2); }} />;
-      case 3: return <DepositStep  onNext={amt => { setData(v => ({ ...v, deposit: amt })); setStep(3); }} onSkip={() => setStep(3)} />;
-      case 4: return <ChooseStep   onNext={c => { setData(v => ({ ...v, choice: c })); setStep(4); }} />;
+      case 1: return <IdentityStep onNext={d => { setData(v => ({ ...v, ...d })); setStep(2); }} />;
+      case 2: return <VaultStep    onNext={d => { setData(v => ({ ...v, ...d })); setStep(3); }} />;
+      case 3: return <DepositStep  onNext={amt => { setData(v => ({ ...v, deposit: amt })); setStep(4); }} onSkip={() => setStep(4)} />;
+      case 4: return <ChooseStep   onNext={c => { setData(v => ({ ...v, choice: c })); setStep(5); }} />;
       case 5: return <DoneStep     data={data} onFinish={finish} />;
       default: return null;
     }
