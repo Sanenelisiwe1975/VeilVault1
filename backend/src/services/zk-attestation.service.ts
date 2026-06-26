@@ -110,7 +110,7 @@ export class ZkAttestationService {
         'verify_proof',
         [
           nativeToScVal(circuitIdBytes, { type: 'bytes' }),
-          nativeToScVal(proofVal),
+          nativeToScVal(proofVal, { type: { a: ['symbol', 'bytes'], b: ['symbol', 'bytes'], c: ['symbol', 'bytes'] } }),
           nativeToScVal(piVals),
         ]
       );
@@ -150,7 +150,11 @@ export class ZkAttestationService {
         nativeToScVal(params.periodStart, { type: 'u64' }),
         nativeToScVal(params.periodEnd, { type: 'u64' }),
         nativeToScVal(params.returnBps, { type: 'i64' }),
-        nativeToScVal(proofVal),
+        // Plain-object keys default to ScVal::String; the contract's
+        // auto-generated Proof struct decoder requires ScVal::Symbol keys —
+        // without this hint, attest_performance traps with
+        // "map_unpack_to_linear_memory ... UnexpectedType".
+        nativeToScVal(proofVal, { type: { a: ['symbol', 'bytes'], b: ['symbol', 'bytes'], c: ['symbol', 'bytes'] } }),
         nativeToScVal(piVals),
       ],
       params.proverSecret
