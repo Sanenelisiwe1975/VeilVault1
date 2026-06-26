@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { Keypair } from '@stellar/stellar-sdk';
 import { z } from 'zod';
 import {
   PrivacyPoolService,
@@ -6,6 +7,9 @@ import {
   computeNullifierHash,
 } from '../../services/privacy-pool.service';
 import { getMerkleService } from '../../services/merkle.service';
+import { getStellarClient } from '../../integrations/stellar/client';
+import { getZkAttestationService } from '../../services/zk-attestation.service';
+import { config } from '../../config';
 import { createChildLogger } from '../../utils/logger';
 
 const log = createChildLogger('privacy-pool-routes');
@@ -206,6 +210,67 @@ router.post('/deposit', async (req: Request, res: Response, next: NextFunction) 
     const result = await svc.deposit(body.depositorSecret, body.commitment);
     log.info({ leafIndex: result.leafIndex, txHash: result.txHash }, 'deposit completed');
     res.json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * POST /api/privacy-pool/attest-withdrawal
+ * Submits a withdrawal proof (generated client-side — secret/nullifier never
+ * sent here) to the zk-attestation contract and returns the attestationId
+ * /withdraw needs. Signed/paid for by the backend's own admin key, which is
+ * safe: a valid proof reveals nothing about who deposited or is withdrawing,
+ * so relaying it carries none of the risk that relaying secret+nullifier
+ * would. Field names match prover-wasm's prove() output (circuit_id,
+ * proof.{a,b,c}, public_inputs) so the browser can pass that JSON through
+ * with no reshaping.
+ *
+ * Body:
+ *   circuit_id:    string (hex)
+ *   proof:         { a: string (hex), b: string (hex), c: string (hex) }
+ *   public_inputs: string[5] (hex) — [root, nullifierHash, recipient, denomination, protocolVersion]
+ */
+router.post('/attest-withdrawal', async (req: Request, res: Response, next: NextFunction) => {
+  const body = validate(
+    z.object({
+      circuit_id: z.string().regex(/^[0-9a-fA-F]{64}$/),
+      proof: z.object({
+        a: z.string().regex(/^[0-9a-fA-F]{192}$/),
+        b: z.string().regex(/^[0-9a-fA-F]{384}$/),
+        c: z.string().regex(/^[0-9a-fA-F]{192}$/),
+      }),
+      public_inputs: z.array(z.string().regex(/^[0-9a-fA-F]{64}$/)).length(5),
+    }),
+    req.body,
+    res,
+  );
+  if (!body) return;
+
+  if (!config.PRIVACY_POOL_CONTRACT_ID) {
+    return next(new Error('PRIVACY_POOL_CONTRACT_ID not configured'));
+  }
+
+  try {
+    const adminPublicKey = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
+    const attestationId = await getZkAttestationService(getStellarClient()).attestPerformance({
+      circuitId: body.circuit_id,
+      vault: config.PRIVACY_POOL_CONTRACT_ID,
+      prover: adminPublicKey,
+      strategyCommitment: Buffer.from(body.public_inputs[1], 'hex'), // nullifierHash
+      periodStart: 0,
+      periodEnd: 1,
+      returnBps: 0,
+      proof: {
+        a: Buffer.from(body.proof.a, 'hex'),
+        b: Buffer.from(body.proof.b, 'hex'),
+        c: Buffer.from(body.proof.c, 'hex'),
+      },
+      publicInputs: body.public_inputs.map((pi) => Buffer.from(pi, 'hex')),
+      proverSecret: config.ADMIN_SECRET_KEY,
+    });
+    log.info({ attestationId }, 'withdrawal proof attested');
+    res.json({ success: true, data: { attestationId } });
   } catch (err) {
     next(err);
   }
