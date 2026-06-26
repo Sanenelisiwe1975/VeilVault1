@@ -16,7 +16,7 @@ const LEVEL_CONFIG = [
 
 const PROOF_TYPES = [
   { id: "age",        label: "Prove Age ≥ 18",      icon: "calendar_month",  desc: "Prove you are an adult without revealing your birthdate" },
-  { id: "kyc",        label: "Prove KYC Verified",  icon: "verified_user",   desc: "Prove identity verification without exposing personal data" },
+  { id: "kyc",        label: "Prove Identity Verified", icon: "verified_user", desc: "Prove identity verification without exposing personal data" },
   { id: "sanctions",  label: "Prove Not Sanctioned", icon: "gpp_good",       desc: "Prove you are not on any sanctions list" },
   { id: "jurisdiction", label: "Prove Jurisdiction", icon: "public",         desc: "Prove your country without revealing exact location" },
 ];
@@ -68,10 +68,10 @@ function RegisterForm({ onDone }: { onDone: () => void }) {
         <MaterialIcon name="badge" size={36} style={{ color: colors.primary }} />
       </div>
       <GradientText style={{ fontSize: 26, fontWeight: 900, fontFamily: fontFamily.headline, display: "block", marginBottom: 8 }}>
-        Create your ZK Identity
+        Create your identity
       </GradientText>
       <p style={{ color: colors.outline, fontSize: 15, marginBottom: 32, lineHeight: 1.5 }}>
-        Your identity lives on Stellar. You control every disclosure.
+        Your identity is private by default — you control what you share, and with whom.
       </p>
 
       {/* Step dots */}
@@ -91,13 +91,13 @@ function RegisterForm({ onDone }: { onDone: () => void }) {
             <div>
               <label style={{ fontSize: 11, color: colors.outline, textTransform: "uppercase" as const, letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>Stellar address</label>
               <input style={INPUT} value={address} onChange={e => setAddress(e.target.value)} placeholder="G..." />
-              <p style={{ fontSize: 11, color: `${colors.outline}88`, margin: "6px 0 0" }}>Your identity DID will be derived from this address</p>
+              <p style={{ fontSize: 11, color: `${colors.outline}88`, margin: "6px 0 0" }}>This becomes your unique identity reference.</p>
             </div>
 
             <div style={{ background: `${colors.primaryContainer}15`, border: `1px solid ${colors.primaryContainer}30`, borderRadius: 12, padding: "12px 16px", display: "flex", gap: 10 }}>
               <MaterialIcon name="shield" size={16} style={{ color: colors.primary, flexShrink: 0, marginTop: 2 }} />
               <p style={{ color: colors.outline, fontSize: 12, margin: 0, lineHeight: 1.6 }}>
-                Your DID is a public identifier. Personal details are never stored on-chain — only cryptographic proofs of attributes.
+                Your identity reference is public, but your personal details are never stored anywhere — only proof that something is true about you (like "over 18"), without revealing the underlying data.
               </p>
             </div>
 
@@ -111,11 +111,11 @@ function RegisterForm({ onDone }: { onDone: () => void }) {
               Choose your starting credentials
             </p>
             <p style={{ color: colors.outline, fontSize: 13, margin: 0 }}>
-              You can add more at any time. Each credential issues a ZK proof — no raw data is shared.
+              You can add more at any time. Each credential lets you prove something about yourself without sharing the actual data.
             </p>
 
             {[
-              { icon: "verified_user", label: "Basic Identity (DID)", desc: "Required", required: true },
+              { icon: "verified_user", label: "Basic Identity", desc: "Required", required: true },
               { icon: "calendar_month", label: "Age Verification (≥18)", desc: "Optional", required: false },
               { icon: "gpp_good", label: "Sanctions Check", desc: "Optional", required: false },
             ].map((c, i) => (
@@ -340,7 +340,7 @@ export const IdentityPage: React.FC = () => {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
             <GradientText style={{ fontSize: isMobile ? 24 : 30, fontWeight: 900, fontFamily: fontFamily.headline }}>
-              ZK Identity
+              My Identity
             </GradientText>
             <LevelBadge level={lvl} />
             {usingMock && (
@@ -349,12 +349,13 @@ export const IdentityPage: React.FC = () => {
               </span>
             )}
           </div>
-          <p style={{ color: colors.outline, fontSize: 13, margin: 0, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {profile?.did ?? "—"}
+          <p style={{ color: colors.outline, fontSize: 13, margin: 0, display: "flex", alignItems: "center", gap: 6 }}>
+            <MaterialIcon name="verified" size={14} style={{ color: colors.tertiary }} />
+            {profile ? "Verified identity — only you control what you share" : "—"}
           </p>
         </div>
         <GradientButton onClick={() => {}} size="sm">
-          <MaterialIcon name="share" size={14} /> Share DID
+          <MaterialIcon name="share" size={14} /> Share my identity
         </GradientButton>
       </div>
 
@@ -425,10 +426,10 @@ export const IdentityPage: React.FC = () => {
       {tab === "Profile" && profile && (
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
           {[
-            { label: "DID",           value: shortDid(profile.did),      mono: true  },
-            { label: "Stellar address",value: shortDid(profile.stellarAddress), mono: true },
-            { label: "VC hash",        value: profile.vcHash.slice(0, 16) + "…", mono: true },
-            { label: "VC endpoint",    value: profile.vcUri,             mono: false },
+            { label: "Identity ID",    value: shortDid(profile.did),      mono: true  },
+            { label: "Wallet address", value: shortDid(profile.stellarAddress), mono: true },
+            { label: "Credential ID",  value: profile.vcHash.slice(0, 16) + "…", mono: true },
+            { label: "Credential source", value: profile.vcUri,          mono: false },
             { label: "Registered",     value: timeSince(profile.registeredAt), mono: false },
             { label: "Last updated",   value: timeSince(profile.updatedAt),    mono: false },
           ].map(r => (
