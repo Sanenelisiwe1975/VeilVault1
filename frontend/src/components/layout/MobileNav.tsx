@@ -1,6 +1,7 @@
 import React from "react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon } from "../ui";
+import { NAV_LABEL } from "../../types";
 import type { SidebarProps, NavItem } from "../../types";
 
 const NAV_LINKS: { icon: string; label: NavItem }[] = [
@@ -92,7 +93,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeNav, onNavChange, on
             textTransform: "uppercase",
             letterSpacing: "0.08em",
           }}>
-            {label}
+            {NAV_LABEL[label] ?? label}
           </span>
         </button>
       );
