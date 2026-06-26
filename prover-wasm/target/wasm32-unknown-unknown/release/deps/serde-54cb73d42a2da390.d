@@ -1,0 +1,14 @@
+C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\deps\serde-54cb73d42a2da390.d: C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\build\serde-d6a5c371ebc51e03\out/private.rs
+
+C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\deps\libserde-54cb73d42a2da390.rlib: C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\build\serde-d6a5c371ebc51e03\out/private.rs
+
+C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\deps\libserde-54cb73d42a2da390.rmeta: C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\build\serde-d6a5c371ebc51e03\out/private.rs
+
+C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\siphe\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+C:\Users\siphe\VeilVault1\prover-wasm\target\wasm32-unknown-unknown\release\build\serde-d6a5c371ebc51e03\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\siphe\\VeilVault1\\prover-wasm\\target\\wasm32-unknown-unknown\\release\\build\\serde-d6a5c371ebc51e03\\out
