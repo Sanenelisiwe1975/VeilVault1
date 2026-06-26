@@ -95,7 +95,7 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ netValueXlm, yieldXl
 // A row of small KPI tiles below the TVL/Net Worth cards. "Active Positions"
 // and "Network" stay demo data — there's no backend concept of "positions"
 // yet, and "Network" is just which Stellar network the app is pointed at.
-// "Yield Earned" and "Guardrails" switch to real vault data when passed in
+// "Yield Earned" and "Spending Limits" switch to real vault data when passed in
 // (same demo-fallback convention as TvlCard/NetWorthCard above).
 
 interface StatTile {
@@ -108,7 +108,7 @@ interface StatTile {
 const DEMO_STATS: StatTile[] = [
   { icon: "trending_up",     label: "30d Yield",        value: "+4.82%",  color: colors.secondary },
   { icon: "account_balance", label: "Active Positions", value: "3",       color: colors.primary },
-  { icon: "verified_user",   label: "Guardrails",       value: "Healthy", color: "#10B981" },
+  { icon: "verified_user",   label: "Spending Limits",       value: "Healthy", color: "#10B981" },
   { icon: "hub",             label: "Network",          value: "Testnet", color: "#0EA5E9" },
 ];
 
@@ -124,7 +124,7 @@ export const StatsGrid: React.FC<StatsGridProps> = ({ yieldXlm, isPaused }) => {
     if (tile.label === "30d Yield" && yieldXlm !== undefined) {
       return { ...tile, label: "Yield Earned", value: `${yieldXlm.toFixed(4)} XLM` };
     }
-    if (tile.label === "Guardrails" && isPaused !== undefined) {
+    if (tile.label === "Spending Limits" && isPaused !== undefined) {
       return { ...tile, value: isPaused ? "Paused" : "Healthy", color: isPaused ? "#EF4444" : tile.color };
     }
     return tile;
