@@ -122,19 +122,29 @@ type Screen = "landing" | "userType" | "connectWallet" | "onboarding" | "app";
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("landing");
-
+  const [afterConnect, setAfterConnect] = useState<"onboarding" | "app">("onboarding");
+  const { isConnected } = useWalletSession();
 
   return (
     <WalletContextProvider>
       {screen === "landing" && (
-        <LandingPage onLaunch={() => setScreen(isOnboarded() ? "app" : "userType")} />
+        <LandingPage onLaunch={() => {
+          if (!isOnboarded()) { setScreen("userType"); return; }
+          // Returning user: a wallet session is in-memory only (cleared on
+          // every page load), so even though they're past onboarding, the
+          // passkey/Freighter/secret-key session must be re-established
+          // before any wallet action (e.g. vault setup) will work.
+          if (isConnected) { setScreen("app"); return; }
+          setAfterConnect("app");
+          setScreen("connectWallet");
+        }} />
       )}
       {screen === "userType" && (
-        <UserTypeSelectionPage onSelect={() => setScreen("connectWallet")}
+        <UserTypeSelectionPage onSelect={() => { setAfterConnect("onboarding"); setScreen("connectWallet"); }}
         />
       )}
       {screen === "connectWallet" && (
-        <ConnectModal required onConnected={() => setScreen("onboarding")} />
+        <ConnectModal required onConnected={() => setScreen(afterConnect)} />
       )}
       {screen === "onboarding" && (
         <OnboardingFlow onComplete={() => setScreen("app")} />
