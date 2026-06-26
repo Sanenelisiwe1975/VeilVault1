@@ -2,13 +2,13 @@
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon } from "../ui";
 
-// â”€â”€â”€ Investment Strategy Card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Investment Strategy Card ─────────────────────────────────────────────────
 
 const STRATEGY_ROWS = [
-  { label: "Risk Profile",       value: "Configurable"          },
-  { label: "Rebalance Trigger",  value: "FHE-encrypted rule"    },
-  { label: "Asset Exposure",     value: "XLM + multi-chain Ika" },
-  { label: "Max Drawdown",       value: "20% (on-chain guard)"  },
+  { label: "Risk level",        value: "Balanced"                 },
+  { label: "Rebalancing",       value: "Automatic, kept private"  },
+  { label: "Supported assets",  value: "XLM (BTC/ETH coming soon)"},
+  { label: "Maximum loss limit",value: "20% — enforced automatically" },
 ];
 
 export const InvestmentStrategy: React.FC = () => (
@@ -23,9 +23,9 @@ export const InvestmentStrategy: React.FC = () => (
     </div>
 
     <p style={{ color: colors.onSurfaceVariant, fontSize: 12, lineHeight: 1.7, marginBottom: 16 }}>
-      Strategy parameters are stored as an Encrypt REFHE ciphertext on-chain. Rebalancing
-      decisions are evaluated homomorphically â€” execution logic stays hidden from searchers
-      and front-running bots throughout the entire lifecycle.
+      Your strategy's exact rules stay private and encrypted — even we can't see them.
+      This keeps bots from front-running your trades, and a built-in loss limit protects
+      your funds automatically, without anyone needing to step in.
     </p>
 
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -36,10 +36,15 @@ export const InvestmentStrategy: React.FC = () => (
         </div>
       ))}
     </div>
+
+    <p style={{ color: "#475569", fontSize: 10, lineHeight: 1.6, marginTop: 14, paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+      Technical: strategy parameters are stored as an FHE ciphertext on-chain; rebalancing
+      decisions are evaluated homomorphically, so execution logic is never exposed.
+    </p>
   </div>
 );
 
-// â”€â”€â”€ Security Badge Pair â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Security Badge Pair ──────────────────────────────────────────────────────
 
 interface SecurityBadgeItem {
   icon:       string;
@@ -50,13 +55,15 @@ interface SecurityBadgeItem {
 }
 
 const BADGE_ITEMS: SecurityBadgeItem[] = [
-  { icon: "lock",  title: "Encrypt REFHE",  subtitle: "FHE Â· Devnet sim",   badge: "FHE",   badgeColor: "#a78bfa" },
-  { icon: "group", title: "Ika dWallet",    subtitle: "2PC-MPC Â· Devnet",   badge: "MPC",   badgeColor: colors.primary  },
+  { icon: "lock",  title: "Private by design",    subtitle: "Your strategy stays encrypted",  badge: "FHE", badgeColor: "#a78bfa" },
+  { icon: "group", title: "Multi-party custody",  subtitle: "No single point of failure",     badge: "MPC", badgeColor: colors.primary },
 ];
 
-const PROGRAM_ID = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
+interface SecurityBadgesProps {
+  contractId?: string | null;
+}
 
-export const SecurityBadges: React.FC = () => {
+export const SecurityBadges: React.FC<SecurityBadgesProps> = ({ contractId }) => {
   const [hovered, setHovered] = useState(false);
 
   return (
@@ -104,15 +111,16 @@ export const SecurityBadges: React.FC = () => {
         </div>
       ))}
 
-      {/* Audit reports â€” opens contract on Stellar Expert */}
+      {/* Opens the real deployed contract on a public Stellar explorer, so
+          anyone can independently verify it — not a third-party audit. */}
       <button
-        onClick={() =>
-          window.open(
-            `https://stellar.expert/explorer/testnet/contract/${PROGRAM_ID}`,
-            "_blank",
-            "noopener,noreferrer"
-          )
-        }
+        type="button"
+        disabled={!contractId}
+        onClick={() => contractId && window.open(
+          `https://stellar.expert/explorer/testnet/contract/${contractId}`,
+          "_blank",
+          "noopener,noreferrer"
+        )}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -121,21 +129,21 @@ export const SecurityBadges: React.FC = () => {
           justifyContent: "center",
           gap:            8,
           padding:        "12px 0",
-          background:     hovered ? `${colors.primary}12` : "transparent",
-          border:         `1px solid ${hovered ? colors.primary + "60" : colors.outlineVariant + "60"}`,
+          background:     hovered && contractId ? `${colors.primary}12` : "transparent",
+          border:         `1px solid ${hovered && contractId ? colors.primary + "60" : colors.outlineVariant + "60"}`,
           borderRadius:   12,
-          color:          hovered ? colors.primary : colors.onSurfaceVariant,
+          color:          !contractId ? colors.outline + "80" : hovered ? colors.primary : colors.onSurfaceVariant,
           fontSize:       11,
           fontWeight:     700,
           textTransform:  "uppercase",
           letterSpacing:  "0.12em",
-          cursor:         "pointer",
+          cursor:         contractId ? "pointer" : "not-allowed",
           fontFamily:     fontFamily.headline,
           transition:     "all 0.2s",
         }}
       >
-        <MaterialIcon name="security" size={14} />
-        View Audit Reports
+        <MaterialIcon name="visibility" size={14} />
+        Verify on Public Explorer
       </button>
     </div>
   );
