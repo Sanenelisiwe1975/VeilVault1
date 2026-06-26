@@ -80,7 +80,9 @@ router.post('/submit', async (req: Request, res: Response) => {
   }
   try {
     const result = await finishPasskeyTransaction(body.data.sessionId, body.data.response as any);
-    res.json(result);
+    // Contract return values may be i128/u64 (decoded by scValToNative as
+    // BigInt), which JSON.stringify can't serialize natively.
+    res.json(JSON.parse(JSON.stringify(result, (_k, v) => typeof v === 'bigint' ? v.toString() : v)));
   } catch (err) {
     log.warn({ err: (err as Error).message }, 'Passkey transaction submission failed');
     res.status(401).json({ error: (err as Error).message });
