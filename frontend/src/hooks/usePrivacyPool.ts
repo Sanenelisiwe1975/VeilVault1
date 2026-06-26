@@ -10,6 +10,13 @@ export interface PoolState {
   nextIndex:    number;
   currentRoot:  string;
   isPaused:     boolean;
+  circuitId:    string;
+}
+
+export interface MerklePath {
+  pathElements: string[]; // 20 × 64-char hex, leaf → root
+  pathIndices:  boolean[]; // 20 — true = current node is right child at that level
+  root:         string;    // 64-char hex
 }
 
 export interface TreeState {
@@ -59,8 +66,9 @@ const MOCK_STATE: PoolState = {
   denomination: "10000000",
   asset:        "XLM",
   nextIndex:    2,
-  currentRoot:  "12871d08259e5d13d07cd80b07edcb37b338165c2098879f06d836e314d2d016",
+  currentRoot:  "12871d08259e5d13d07cd80b07edcb37b338165c2098879f06d836e314d2d01a",
   isPaused:     false,
+  circuitId:    "0101010101010101010101010101010101010101010101010101010101010101",
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -142,6 +150,13 @@ export function usePrivacyPool() {
     return note;
   }, [usingMock, notes, state, load]);
 
+  // ── Merkle path (for proving) ──────────────────────────────────────────────
+
+  const getMerklePath = useCallback(async (leafIndex: number): Promise<MerklePath> => {
+    const res = await api.get<{ success: boolean; data: MerklePath }>(`/privacy-pool/merkle-path/${leafIndex}`);
+    return res.data;
+  }, []);
+
   // ── Withdraw ───────────────────────────────────────────────────────────────
 
   const withdraw = useCallback(async (params: {
@@ -188,7 +203,7 @@ export function usePrivacyPool() {
   return {
     state, notes, loading, usingMock,
     xlmDenomination,
-    deposit, withdraw, deleteNote,
+    deposit, withdraw, deleteNote, getMerklePath,
     refresh: load,
   };
 }
