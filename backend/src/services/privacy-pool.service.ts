@@ -17,12 +17,16 @@ import { createChildLogger } from '../utils/logger';
 const log = createChildLogger('privacy-pool');
 
 export interface PoolState {
+  contractId: string;
   denomination: string;
   asset: string;
   totalDeposits: number;
   totalWithdrawals: number;
   isPaused: boolean;
   zkVerifier: string | null;
+  nextIndex: number;
+  currentRoot: string;
+  circuitId: string;
 }
 
 export interface TreeState {
@@ -191,13 +195,18 @@ export class PrivacyPoolService {
     }
 
     const val = scValToNative((result as SorobanRpc.Api.SimulateTransactionSuccessResponse).result!.retval);
+    const tree = await this.getTreeState();
     return {
+      contractId: this.contractId,
       denomination: val.denomination?.toString() ?? '0',
       asset: val.asset ?? '',
       totalDeposits: Number(val.total_deposits ?? 0),
       totalWithdrawals: Number(val.total_withdrawals ?? 0),
       isPaused: !!val.is_paused,
       zkVerifier: val.zk_verifier ?? null,
+      nextIndex: tree.nextIndex,
+      currentRoot: tree.currentRoot,
+      circuitId: config.WITHDRAW_CIRCUIT_ID ?? '',
     };
   }
 
