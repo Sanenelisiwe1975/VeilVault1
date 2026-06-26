@@ -1,6 +1,14 @@
 
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW";
 export type NavItem = "Portfolio" | "Vaults" | "Strategy" | "Security" | "Settings" | "Stokvel" | "Identity" | "Pool" | "Payments" | "Assets" | "Analytics";
+
+/** User-facing label for each NavItem — lets nav routing/state keep its
+ *  internal identifiers while the sidebar shows plainer English. Falls back
+ *  to the identifier itself for items not listed here. */
+export const NAV_LABEL: Partial<Record<NavItem, string>> = {
+  Pool:     "Privacy",
+  Strategy: "Investments",
+};
 export type ActiveTab = "Overview" | "Yields" | "History";
 export type ViewMode = "Grid" | "List";
 export type SortOption = "Highest APY" | "Lowest APY" | "Highest TVL" | "Newest";
