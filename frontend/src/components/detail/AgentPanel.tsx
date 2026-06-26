@@ -1,5 +1,5 @@
 ﻿/**
- * AgentPanel â€” Human-testable Zerion Agent x402 demo
+ * AgentPanel — Human-testable Zerion Agent x402 demo
  *
  * Flow:
  *   1. Detect a rebalancing opportunity
@@ -57,26 +57,26 @@ export const AgentPanel: React.FC = () => {
     setExecSig(null);
 
     try {
-      // â”€â”€ Step 1: Detect opportunity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 1: Detect opportunity ────────────────────────────────────────
       add("search", "Agent: Analysing portfolio on Stellar...");
       await sleep(800);
-      add("trending_up", "Signal: XLM +8% in 4h â€” rebalance opportunity", "#4ade80");
+      add("trending_up", "Signal: XLM +8% in 4h — rebalance opportunity", "#4ade80");
 
       if (vault.netValueSol <= 0) {
-        throw new Error("Vault balance is 0 â€” deposit first.");
+        throw new Error("Vault balance is 0 — deposit first.");
       }
 
       const execXlm     = Math.min(vault.netValueSol * 0.10, 5);
       const execStroops = BigInt(Math.round(execXlm * 1e7));
 
-      // â”€â”€ Step 2: x402 probe â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 2: x402 probe ────────────────────────────────────────────────
       setState("discovered_402");
       add("send", `POST ${API_BASE}`);
       add("receipt_long",
-        `â† Simulated 402 Â· ${formatX402Fee(X402_FEE_LAMPORTS)} fee Â· strategy gating active`,
+        `← Simulated 402 · ${formatX402Fee(X402_FEE_LAMPORTS)} fee · strategy gating active`,
         "#F7931A");
 
-      // â”€â”€ Step 3: Build FHE operation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 3: Build FHE operation ───────────────────────────────────────
       setState("building");
       add("lock", `Building FHE rebalance op: ${execXlm.toFixed(4)} XLM (10% of vault)...`);
       const fheKeys = generateFheKeyPair();
@@ -86,9 +86,9 @@ export const AgentPanel: React.FC = () => {
         fheKeys,
       );
       await sleep(400);
-      add("verified", "FHE op + proof ready â€” strategy hash committed on-chain", "#4ade80");
+      add("verified", "FHE op + proof ready — strategy hash committed on-chain", "#4ade80");
 
-      // â”€â”€ Step 4: Call /api/agent/execute-strategy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      // ── Step 4: Call /api/agent/execute-strategy ──────────────────────────
       setState("signing");
       add("key", "Submitting to backend agent executor...");
 
@@ -113,8 +113,8 @@ export const AgentPanel: React.FC = () => {
 
       setExecSig(sig);
       setState("done");
-      add("verified", `Strategy executed! Tx: ${sig.slice(0, 14)}â€¦`, "#4ade80");
-      add("lock", "FHE guardrails enforced Â· Ika dWallet ready Â· x402 fee collected", colors.primary);
+      add("verified", `Strategy executed! Tx: ${sig.slice(0, 14)}…`, "#4ade80");
+      add("lock", "FHE guardrails enforced · Ika dWallet ready · x402 fee collected", colors.primary);
 
     } catch (e) {
       setState("error");
@@ -129,8 +129,8 @@ export const AgentPanel: React.FC = () => {
     discovered_402:"Received 402 challenge...",
     building:      "Building FHE operation...",
     signing:       "Sign in wallet...",
-    done:          "Cycle complete âœ“",
-    error:         "Error â€” try again",
+    done:          "Cycle complete ✓",
+    error:         "Error — try again",
   };
 
   const isRunning = !["idle", "done", "error"].includes(state);
@@ -172,14 +172,14 @@ export const AgentPanel: React.FC = () => {
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap" as const, gap: 4 }}>
           {[
             { icon: "psychology",   label: "Detect",  active: state === "detecting"                      },
-            { icon: "arrow_forward",label: "â†’",       active: false                                       },
+            { icon: "arrow_forward",label: "→",       active: false                                       },
             { icon: "http",         label: "402",     active: state === "discovered_402"                  },
-            { icon: "arrow_forward",label: "â†’",       active: false                                       },
+            { icon: "arrow_forward",label: "→",       active: false                                       },
             { icon: "lock",         label: "FHE",     active: state === "building"                        },
-            { icon: "arrow_forward",label: "â†’",       active: false                                       },
+            { icon: "arrow_forward",label: "→",       active: false                                       },
             { icon: "bolt",         label: "Execute", active: ["signing","done"].includes(state)           },
           ].map(({ icon, label, active }, i) =>
-            label === "â†’" ? (
+            label === "→" ? (
               <MaterialIcon key={i} name="arrow_forward" size={10} style={{ color: "#334155" }} />
             ) : (
               <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -213,13 +213,13 @@ export const AgentPanel: React.FC = () => {
       {execSig && (
         <div style={{ background: "#14532d22", borderRadius: 8, padding: "10px 12px", marginBottom: 14 }}>
           <p style={{ fontSize: 11, color: "#4ade80", marginBottom: 4, fontWeight: 700 }}>
-            âœ“ Executed autonomously via x402 + FHE + Ika
+            ✓ Executed autonomously via x402 + FHE + Ika
           </p>
           <button type="button"
             onClick={() => window.open(`https://stellar.expert/explorer/testnet/tx/${execSig}`, "_blank")}
             style={{ background: "transparent", border: "none", color: "#64748b",
               cursor: "pointer", fontSize: 11, fontFamily: "monospace", textDecoration: "underline" }}>
-            {execSig.slice(0, 16)}â€¦ â†—
+            {execSig.slice(0, 16)}… ↗
           </button>
         </div>
       )}
@@ -247,7 +247,7 @@ export const AgentPanel: React.FC = () => {
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, justifyContent: "center" }}>
         <MaterialIcon name="info" size={11} style={{ color: "#334155" }} />
         <span style={{ fontSize: 9, color: "#334155", textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
-          x402 fee: {formatX402Fee(X402_FEE_LAMPORTS)} Â· 1 signature Â· Devnet
+          x402 fee: {formatX402Fee(X402_FEE_LAMPORTS)} · 1 signature · Devnet
         </span>
       </div>
     </div>
