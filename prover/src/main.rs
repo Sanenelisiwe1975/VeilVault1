@@ -1,7 +1,3 @@
-mod circuit;
-mod mimc;
-mod serialize;
-
 use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result};
@@ -14,9 +10,9 @@ use clap::{Parser, Subcommand};
 use rand::thread_rng;
 use sha2::{Digest, Sha256};
 
-use circuit::{compute_merkle_root, to_fr_native, WithdrawCircuit, TREE_DEPTH};
-use mimc::compute_round_constants;
-use serialize::{vk_to_register_circuit_json, withdrawal_payload_json};
+use veilpool_prover_core::circuit::{compute_merkle_root, to_fr_native, WithdrawCircuit, TREE_DEPTH};
+use veilpool_prover_core::mimc::compute_round_constants;
+use veilpool_prover_core::serialize::{vk_to_register_circuit_json, withdrawal_payload_json};
 
 //  CLI 
 
