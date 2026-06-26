@@ -41,7 +41,13 @@ router.get('/info', async (req: Request, res: Response) => {
     ]);
     res.json({
       success: true,
-      data: withBigInt({ totalAssets: assets, totalShares: shares, sharePrice }),
+      data: withBigInt({
+        totalAssets: assets,
+        totalShares: shares,
+        sharePrice,
+        vaultContractId: config.VAULT_CONTRACT_ID ?? null,
+        agentRegistryContractId: config.AGENT_REGISTRY_CONTRACT_ID ?? null,
+      }),
       requestId: (req as Request & { id: string }).id,
     });
   } catch (err) {
