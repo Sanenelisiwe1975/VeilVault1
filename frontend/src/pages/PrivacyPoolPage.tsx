@@ -444,7 +444,7 @@ export const PrivacyPoolPage: React.FC = () => {
             )}
           </div>
           <p style={{ color: colors.outline, fontSize: 14, margin: 0 }}>
-            Fixed-denomination shielded transfers · MiMC-5 Merkle tree · Groth16 ZK proofs
+            Send and receive funds privately — nobody can link your deposit to your withdrawal.
           </p>
         </div>
         <GradientButton onClick={() => setShowDeposit(true)} size="sm">
@@ -455,7 +455,7 @@ export const PrivacyPoolPage: React.FC = () => {
       {/* ── Stats ── */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 14, marginBottom: 28 }}>
         <Stat icon="lock"           label="Denomination"    value={`${xlmDenomination} XLM`}          />
-        <Stat icon="group"          label="Anonymity set"   value={`${state?.nextIndex ?? 0} notes`}   />
+        <Stat icon="group"          label="Privacy strength" value={`${state?.nextIndex ?? 0} notes`}   />
         <Stat icon="folder"         label="My notes"        value={`${unspent.length} unspent`}        color={colors.tertiary} />
         <Stat icon="check_circle"   label="Pool status"     value={state?.isPaused ? "Paused" : "Live"} color={state?.isPaused ? "#ef4444" : "#22c55e"} />
       </div>
@@ -529,10 +529,10 @@ export const PrivacyPoolPage: React.FC = () => {
       {tab === "about" && (
         <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
           {[
-            { icon: "download",    title: "1. Deposit",   color: colors.primary,  text: `Send exactly ${xlmDenomination} XLM. A secret "note" (random secret + nullifier) is generated. Store it safely — it is the only way to retrieve your funds.` },
-            { icon: "privacy_tip", title: "2. Wait",      color: colors.tertiary, text: "The longer you wait and the more other deposits occur, the larger your anonymity set — making it harder to link deposit to withdrawal." },
-            { icon: "key",         title: "3. Prove",     color: colors.primary,  text: "Use the Rust prover CLI to generate a Groth16 ZK proof that your note is in the Merkle tree. The proof reveals nothing about the depositor." },
-            { icon: "upload",      title: "4. Withdraw",  color: "#22c55e",       text: `Submit the proof on-chain. ${xlmDenomination} XLM is sent to any address you choose. The nullifier is marked spent to prevent double-withdrawals.` },
+            { icon: "download",    title: "1. Deposit",   color: colors.primary,  text: `Send exactly ${xlmDenomination} XLM. A secret "note" is generated for you — save it somewhere safe, since it's the only way to get your funds back later.` },
+            { icon: "privacy_tip", title: "2. Wait",      color: colors.tertiary, text: "The longer you wait, and the more other people deposit in the meantime, the harder it becomes for anyone to connect your deposit to your eventual withdrawal." },
+            { icon: "key",         title: "3. Prove",     color: colors.primary,  text: "When you're ready to withdraw, the app generates a cryptographic proof that your note is genuine — without revealing who you are or which deposit was yours." },
+            { icon: "upload",      title: "4. Withdraw",  color: "#22c55e",       text: `That proof is submitted, and ${xlmDenomination} XLM is sent to any address you choose. Each note can only be used once, so the same funds can't be withdrawn twice.` },
           ].map(c => (
             <div key={c.title} style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: "20px", border: `1px solid rgba(255,255,255,0.05)` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
