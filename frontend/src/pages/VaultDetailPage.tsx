@@ -9,29 +9,30 @@ import {
   PerformancePanel,
 } from "../components/detail";
 import { AgentPanel } from "../components/detail/AgentPanel";
+import { CollapsibleSection } from "../components/ui";
 import { useVault, useIsMobile } from "../hooks";
 
 export const VaultDetailPage: React.FC = () => {
-  const { vault, vaultExists } = useVault();
+  const { vault, vaultExists, vaultContractId } = useVault();
   const isMobile = useIsMobile();
 
   // Show real on-chain TVL when available; fall back to placeholder.
   const tvlDisplay = vaultExists && vault
     ? `${vault.netValueSol.toFixed(4)} XLM`
-    : "â€”";
+    : "—";
 
   const yieldDisplay = vaultExists && vault && vault.yieldEarnedSol > 0
     ? `+${(vault.yieldEarnedSol / Math.max(vault.totalDepositedSol, 0.0001) * 100).toFixed(2)}%`
-    : "â€”";
+    : "—";
 
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 1200, margin: "0 auto" }}>
 
-      {/* â”€â”€ Mobile: action panels first, then chart/info â”€â”€ */}
+      {/* ── Mobile: action panels first, then chart/info ── */}
       {isMobile ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <VaultDetailHeader
-            breadcrumb="VeilVault â€” Encrypted Yield"
+            breadcrumb="VeilVault — Encrypted Yield"
             title="Encrypted Yield Vault"
             description="Deposit native XLM (or bridgeless BTC/ETH via Ika dWallet). Strategy params are FHE-encrypted; guardrails enforced on-chain."
             netApy={yieldDisplay}
@@ -49,10 +50,10 @@ export const VaultDetailPage: React.FC = () => {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24 }}>
-          {/* â”€â”€ Left column â”€â”€ */}
+          {/* ── Left column ── */}
           <div>
             <VaultDetailHeader
-              breadcrumb="VeilVault â€” Encrypted Yield"
+              breadcrumb="VeilVault — Encrypted Yield"
               title="Encrypted Yield Vault"
               description="Deposit native XLM (or bridgeless BTC/ETH via Ika dWallet). Strategy params are FHE-encrypted; guardrails enforced on-chain."
               netApy={yieldDisplay}
@@ -65,7 +66,7 @@ export const VaultDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* â”€â”€ Right column â”€â”€ */}
+          {/* ── Right column ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <DepositPanel />
             <PerformancePanel />
@@ -87,7 +88,7 @@ export const VaultDetailPage: React.FC = () => {
           textTransform: "uppercase",
         }}
       >
-        Veil Vault â€¢ FHE by Encrypt Â· Custody by Ika Â· Program:{" "}
+        Veil Vault • FHE by Encrypt · Custody by Ika · Program:{" "}
         G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS
       </div>
     </section>
