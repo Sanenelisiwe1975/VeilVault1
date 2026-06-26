@@ -4,7 +4,7 @@ import { GradientButton, MaterialIcon } from "../ui";
 import { useVault } from "../../hooks";
 
 function shortenSig(sig: string) {
-  return `${sig.slice(0, 6)}â€¦${sig.slice(-6)}`;
+  return `${sig.slice(0, 6)}…${sig.slice(-6)}`;
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -46,7 +46,7 @@ export const PerformancePanel: React.FC = () => {
   return (
     <div style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: 20 }}>
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
         <MaterialIcon name="insights" size={18} style={{ color: colors.primary }} />
         <span style={{ fontSize: 13, fontWeight: 700, color: "#fff", fontFamily: fontFamily.headline }}>
@@ -66,20 +66,20 @@ export const PerformancePanel: React.FC = () => {
         )}
       </div>
 
-      {/* â”€â”€ Vault snapshot â”€â”€ */}
+      {/* ── Vault snapshot ── */}
       <div style={{ marginBottom: 16 }}>
         <Row label="Net Value"    value={`${vault.netValueSol.toFixed(4)} XLM`} />
         <Row label="Deployed"     value={`${Math.max(0, vault.totalDepositedSol - vault.netValueSol).toFixed(4)} XLM`} />
         <Row label="Yield Earned" value={`${vault.yieldEarnedSol.toFixed(6)} XLM`} />
         <Row
           label="P&L Report"
-          value={vault.perfSummaryStored ? "Encrypted on-chain âœ“" : "Not stored yet"}
+          value={vault.perfSummaryStored ? "Encrypted on-chain ✓" : "Not stored yet"}
         />
       </div>
 
       <div style={{ height: 1, background: "rgba(255,255,255,0.06)", marginBottom: 16 }} />
 
-      {/* â”€â”€ Deploy Capital â”€â”€ */}
+      {/* ── Deploy Capital ── */}
       <div style={{ marginBottom: 16 }}>
         <p style={{
           fontSize: 10, fontWeight: 700, color: "#64748b",
@@ -88,7 +88,7 @@ export const PerformancePanel: React.FC = () => {
           Deploy Capital
         </p>
         <p style={{ fontSize: 11, color: "#475569", marginBottom: 8 }}>
-          Transfers XLM from vault â†’ protocol under FHE guardrails.{" "}
+          Transfers XLM from vault → protocol under FHE guardrails.{" "}
           <span style={{ color: "#94a3b8" }}>(devnet: owner wallet as mock protocol)</span>
         </p>
         <input
@@ -102,11 +102,11 @@ export const PerformancePanel: React.FC = () => {
           onClick={() => executeStrategy(parseFloat(deployAmt))}
           disabled={loading || parseFloat(deployAmt) <= 0}
         >
-          {loading ? "Executingâ€¦" : "Execute Strategy"}
+          {loading ? "Executing…" : "Execute Strategy"}
         </GradientButton>
       </div>
 
-      {/* â”€â”€ Harvest Yield â”€â”€ */}
+      {/* ── Harvest Yield ── */}
       <div style={{ marginBottom: 16 }}>
         <p style={{
           fontSize: 10, fontWeight: 700, color: "#64748b",
@@ -129,11 +129,11 @@ export const PerformancePanel: React.FC = () => {
           disabled={loading || parseFloat(harvestAmt) <= 0}
           style={{ background: `linear-gradient(135deg, #0f766e, #14b8a6)` }}
         >
-          {loading ? "Recordingâ€¦" : "Return & Record Yield"}
+          {loading ? "Recording…" : "Return & Record Yield"}
         </GradientButton>
       </div>
 
-      {/* â”€â”€ Encrypted P&L â”€â”€ */}
+      {/* ── Encrypted P&L ── */}
       <div style={{ marginBottom: 12 }}>
         <p style={{
           fontSize: 10, fontWeight: 700, color: "#64748b",
@@ -142,7 +142,7 @@ export const PerformancePanel: React.FC = () => {
           Encrypted P&L Report
         </p>
         <p style={{ fontSize: 11, color: "#475569", marginBottom: 8 }}>
-          Snapshots vault metrics as an FHE-encrypted blob â€” only the owner can decrypt.
+          Snapshots vault metrics as an FHE-encrypted blob — only the owner can decrypt.
         </p>
         <GradientButton
           fullWidth
@@ -150,11 +150,11 @@ export const PerformancePanel: React.FC = () => {
           disabled={loading}
           style={{ background: `linear-gradient(135deg, #6d28d9, #7c3aed)` }}
         >
-          {loading ? "Encryptingâ€¦" : "Generate Encrypted Report"}
+          {loading ? "Encrypting…" : "Generate Encrypted Report"}
         </GradientButton>
       </div>
 
-      {/* â”€â”€ Feedback â”€â”€ */}
+      {/* ── Feedback ── */}
       {error && (
         <div style={{
           color: "#f87171", fontSize: 11,
@@ -171,15 +171,15 @@ export const PerformancePanel: React.FC = () => {
           padding: "8px 12px", marginTop: 8,
           fontFamily: fontFamily.body,
         }}>
-          âœ“ Tx: {shortenSig(txSig)}
+          ✓ Tx: {shortenSig(txSig)}
         </div>
       )}
 
-      {/* â”€â”€ Devnet note â”€â”€ */}
+      {/* ── Devnet note ── */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 12, justifyContent: "center" }}>
         <MaterialIcon name="science" size={12} style={{ color: "#475569" }} />
         <span style={{ fontSize: 9, fontWeight: 700, color: "#475569", textTransform: "uppercase" as const, letterSpacing: "0.12em" }}>
-          Devnet Â· FHE & Ika simulated Â· Real lamport transfers
+          Devnet · FHE & Ika simulated · Real lamport transfers
         </span>
       </div>
     </div>
