@@ -4,15 +4,19 @@
  * Deposit  : generate a fresh (secret, nullifier) pair → compute commitment
  *            → call deposit API → show the "note" to save → done
  *
- * Withdraw : paste saved note → get Merkle path → run Rust prover
- *            → paste proof JSON → submit attestation → withdraw
+ * Withdraw : look up the deposit's Merkle path → generate a Groth16 proof in
+ *            a Web Worker (secret/nullifier never leave the browser) →
+ *            submit it for attestation → withdraw. See lib/proverWorker.ts.
  */
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
+import { Keypair } from "@stellar/stellar-sdk";
 import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton, GradientText } from "../components/ui";
 import { useIsMobile } from "../hooks";
 import { usePrivacyPool } from "../hooks/usePrivacyPool";
 import type { DepositNote } from "../hooks/usePrivacyPool";
+import { api } from "../lib/api";
+import { proveWithdrawal } from "../lib/proverClient";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -235,6 +239,13 @@ function DepositModal({ denomination, onClose, onDeposit }: {
 }
 
 // ─── Withdraw modal ───────────────────────────────────────────────────────────
+//
+// Proving (the old "run a Rust CLI command, paste back a 64-char hex
+// attestation ID" step) now happens automatically: a Web Worker generates the
+// proof in-browser (lib/proverWorker.ts) — the deposit's secret/nullifier
+// never leave the device, same guarantee as running the CLI locally — and
+// the result is submitted for attestation automatically. The user only ever
+// provides the recipient key and clicks one button.
 
 function WithdrawModal({ note, denomination, onClose, onWithdraw }: {
   note:        DepositNote;
@@ -242,49 +253,60 @@ function WithdrawModal({ note, denomination, onClose, onWithdraw }: {
   onClose:     () => void;
   onWithdraw:  (params: { note: DepositNote; recipientSecret: string; attestationId: string; root: string }) => Promise<void>;
 }) {
-  const [step,          setStep]          = useState<"setup" | "proving" | "submit" | "done">("setup");
-  const [recipSecret,   setRecipSecret]   = useState("");
-  const [attestationId, setAttestationId] = useState("");
-  const [root,          setRoot]          = useState("");
-  const [loading,       setLoading]       = useState(false);
-  const [error,         setError]         = useState("");
-  const [txHash,        setTxHash]        = useState("");
-  const { state }  = usePrivacyPool();
-
-  // Pre-fill root from pool state
-  const poolRoot = state?.currentRoot ?? "";
-
-  const proverCmd = `cd prover && cargo run --release -- prove \\
-  --secret ${note.secret} \\
-  --nullifier ${note.nullifier} \\
-  --path-elements-file pe.json \\
-  --path-indices-file pi.json \\
-  --root ${poolRoot} \\
-  --recipient 0000000000000000000000000000000000000000000000000000000000000001 \\
-  --denomination 10000000 \\
-  --circuit-id 0101010101010101010101010101010101010101010101010101010101010101 \\
-  --pk prover-keys/pk.bin \\
-  --output proof.json`;
-
-  const fetchPath = async () => {
-    setStep("proving");
-    // In production: fetch path from backend
-    // Here we just advance to the submit step in demo mode
-    await new Promise(r => setTimeout(r, 800));
-    setRoot(poolRoot);
-    setStep("submit");
-  };
+  const [step,        setStep]        = useState<"setup" | "working" | "done">("setup");
+  const [recipSecret, setRecipSecret] = useState("");
+  const [statusText,  setStatusText]  = useState("");
+  const [error,       setError]       = useState("");
+  const { state, usingMock, getMerklePath } = usePrivacyPool();
 
   const submit = async () => {
-    setLoading(true);
     setError("");
+    setStep("working");
     try {
-      await onWithdraw({ note, recipientSecret: recipSecret || "DEMO_SECRET", attestationId: attestationId || "00".repeat(32), root: root || poolRoot });
+      if (usingMock) {
+        setStatusText("Simulating withdrawal…");
+        await onWithdraw({ note, recipientSecret: recipSecret || "DEMO_SECRET", attestationId: "00".repeat(32), root: state?.currentRoot ?? "" });
+        setStep("done");
+        return;
+      }
+
+      setStatusText("Looking up your deposit…");
+      const path = await getMerklePath(note.leafIndex);
+
+      const recipientKeypair = Keypair.fromSecret(recipSecret);
+      const recipientHex = recipientKeypair.rawPublicKey().toString("hex");
+
+      const proof = await proveWithdrawal(
+        {
+          secretHex:        note.secret,
+          nullifierHex:     note.nullifier,
+          pathElementsJson: JSON.stringify(path.pathElements),
+          pathIndicesJson:  JSON.stringify(path.pathIndices),
+          rootHex:          path.root,
+          recipientHex,
+          denomination:     Number(state?.denomination ?? 0),
+          circuitIdHex:     state?.circuitId ?? "",
+          poolAddress:      state?.contractId ?? "",
+          proverAddress:    "",
+        },
+        (stage) => setStatusText(
+          stage === "downloading-key"
+            ? "Setting up secure verification — this only happens once on this device…"
+            : "Verifying your deposit…",
+        ),
+      );
+
+      setStatusText("Submitting your withdrawal…");
+      const attestRes = await api.post<{ success: boolean; data: { attestationId: string } }>(
+        "/privacy-pool/attest-withdrawal",
+        proof,
+      );
+
+      await onWithdraw({ note, recipientSecret: recipSecret, attestationId: attestRes.data.attestationId, root: path.root });
       setStep("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Withdrawal failed");
-    } finally {
-      setLoading(false);
+      setStep("setup");
     }
   };
 
@@ -296,29 +318,9 @@ function WithdrawModal({ note, denomination, onClose, onWithdraw }: {
           <GradientText style={{ fontSize: 18, fontWeight: 800, fontFamily: fontFamily.headline }}>
             Unshield {denomination} XLM
           </GradientText>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline }}><MaterialIcon name="close" size={22} /></button>
-        </div>
-
-        {/* Step tracker */}
-        <div style={{ display: "flex", gap: 0, marginBottom: 24 }}>
-          {["Setup", "Path", "Prove", "Done"].map((s, i) => {
-            const stepIdx = { setup: 0, proving: 1, submit: 2, done: 3 }[step];
-            const active  = i === stepIdx;
-            const done    = i < stepIdx;
-            return (
-              <div key={s} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
-                  {i > 0 && <div style={{ flex: 1, height: 2, background: done || active ? colors.primary : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />}
-                  <div style={{ width: 24, height: 24, borderRadius: "50%", border: `2px solid ${done || active ? colors.primary : "rgba(255,255,255,0.15)"}`, background: done ? colors.primary : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "all 0.3s" }}>
-                    {done ? <MaterialIcon name="check" size={12} style={{ color: "#000" }} />
-                          : <span style={{ fontSize: 10, color: active ? colors.primary : colors.outline }}>{i + 1}</span>}
-                  </div>
-                  {i < 3 && <div style={{ flex: 1, height: 2, background: done ? colors.primary : "rgba(255,255,255,0.1)", transition: "background 0.3s" }} />}
-                </div>
-                <span style={{ fontSize: 10, color: active ? colors.primary : colors.outline }}>{s}</span>
-              </div>
-            );
-          })}
+          {step !== "working" && (
+            <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline }}><MaterialIcon name="close" size={22} /></button>
+          )}
         </div>
 
         {step === "setup" && (
@@ -329,56 +331,26 @@ function WithdrawModal({ note, denomination, onClose, onWithdraw }: {
                 Leaf #{note.leafIndex} · {shortHash(note.commitment)}
               </p>
             </div>
+
             <div>
               <label style={{ fontSize: 11, color: colors.outline, textTransform: "uppercase" as const, letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
                 Recipient secret key
               </label>
               <input type="password" value={recipSecret} onChange={e => setRecipSecret(e.target.value)} placeholder="S..." style={{ background: colors.surfaceContainerHigh, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 10, padding: "12px 16px", color: colors.onSurface, fontSize: 14, outline: "none", fontFamily: fontFamily.body, width: "100%", boxSizing: "border-box" as const }} />
-              <p style={{ margin: "5px 0 0", fontSize: 11, color: colors.outline }}>The account that will receive the {denomination} XLM</p>
-            </div>
-            <GradientButton onClick={fetchPath} disabled={!recipSecret.trim()} size="lg">Fetch Merkle Path →</GradientButton>
-          </div>
-        )}
-
-        {step === "proving" && (
-          <div style={{ textAlign: "center", padding: "24px 0" }}>
-            <div style={{ width: 48, height: 48, border: `3px solid ${colors.primaryContainer}`, borderTopColor: colors.primary, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
-            <p style={{ color: colors.onSurface, fontSize: 15, fontFamily: fontFamily.headline, margin: "0 0 6px" }}>Fetching Merkle path…</p>
-          </div>
-        )}
-
-        {step === "submit" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ background: colors.surfaceContainerHigh, borderRadius: 12, padding: "14px" }}>
-              <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: colors.onSurface, fontFamily: fontFamily.headline }}>
-                1. Run the Rust prover
-              </p>
-              <div style={{ background: "#0a0a0f", borderRadius: 8, padding: "10px 12px", fontFamily: "monospace", fontSize: 10, color: "#a3e635", lineHeight: 1.7, overflowX: "auto", whiteSpace: "pre" }}>
-                {proverCmd}
-              </div>
-              <button onClick={() => navigator.clipboard?.writeText(proverCmd)} style={{ marginTop: 8, padding: "6px 12px", borderRadius: 6, background: "transparent", border: `1px solid rgba(255,255,255,0.1)`, color: colors.outline, cursor: "pointer", fontSize: 11, fontFamily: fontFamily.body, display: "flex", alignItems: "center", gap: 6 }}>
-                <MaterialIcon name="content_copy" size={12} /> Copy command
-              </button>
-            </div>
-
-            <div>
-              <label style={{ fontSize: 11, color: colors.outline, textTransform: "uppercase" as const, letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
-                2. Attestation ID (from zk-attestation.attest_performance)
-              </label>
-              <input value={attestationId} onChange={e => setAttestationId(e.target.value)} placeholder="64-char hex…" style={{ background: colors.surfaceContainerHigh, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 10, padding: "12px 16px", color: colors.onSurface, fontSize: 13, outline: "none", fontFamily: "monospace", width: "100%", boxSizing: "border-box" as const }} />
+              <p style={{ margin: "5px 0 0", fontSize: 11, color: colors.outline }}>The account that will receive the {denomination} XLM — it needs to already hold a little XLM to cover the transaction fee.</p>
             </div>
 
             {error && <p style={{ color: "#ef4444", fontSize: 13, margin: 0 }}>{error}</p>}
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => setStep("setup")} style={{ flex: 1, padding: "12px", borderRadius: 12, background: colors.surfaceContainerHigh, border: "none", color: colors.outline, cursor: "pointer", fontSize: 14, fontFamily: fontFamily.headline }}>Back</button>
-              <GradientButton onClick={submit} disabled={loading} style={{ flex: 2 }}>
-                {loading ? "Withdrawing…" : `Withdraw ${denomination} XLM →`}
-              </GradientButton>
-            </div>
-            <p style={{ fontSize: 11, color: colors.outline, textAlign: "center", margin: 0 }}>
-              Demo mode: skip attestation ID to simulate withdrawal
-            </p>
+            <GradientButton onClick={submit} disabled={!recipSecret.trim()} size="lg">Withdraw {denomination} XLM →</GradientButton>
+          </div>
+        )}
+
+        {step === "working" && (
+          <div style={{ textAlign: "center", padding: "24px 0" }}>
+            <div style={{ width: 48, height: 48, border: `3px solid ${colors.primaryContainer}`, borderTopColor: colors.primary, borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+            <p style={{ color: colors.onSurface, fontSize: 15, fontFamily: fontFamily.headline, margin: "0 0 6px" }}>{statusText}</p>
+            <p style={{ color: colors.outline, fontSize: 12, margin: 0 }}>Don't close this window.</p>
           </div>
         )}
 
@@ -386,7 +358,7 @@ function WithdrawModal({ note, denomination, onClose, onWithdraw }: {
           <div style={{ textAlign: "center", padding: "16px 0" }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>💸</div>
             <p style={{ color: "#22c55e", fontSize: 18, fontWeight: 800, fontFamily: fontFamily.headline, margin: "0 0 6px" }}>Withdrawn successfully!</p>
-            <p style={{ color: colors.outline, fontSize: 14, margin: "0 0 20px" }}>{denomination} XLM sent to your wallet · nullifier spent</p>
+            <p style={{ color: colors.outline, fontSize: 14, margin: "0 0 20px" }}>{denomination} XLM sent to your wallet · note spent</p>
             <GradientButton onClick={onClose} size="lg">Done</GradientButton>
           </div>
         )}
