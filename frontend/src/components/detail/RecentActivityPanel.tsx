@@ -5,12 +5,19 @@ import { RECENT_ACTIVITY } from "../../data";
 
 export const RecentActivityPanel: React.FC = () => (
   <div style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: 20 }}>
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
       <MaterialIcon name="history" size={18} style={{ color: colors.onSurfaceVariant }} />
       <span style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 15, color: "#fff" }}>
         Recent Activity
       </span>
+      <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 700, color: "#64748b",
+        background: "#64748b18", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.08em" }}>
+        Sample data
+      </span>
     </div>
+    <p style={{ fontSize: 11, color: "#475569", marginBottom: 16 }}>
+      Per-transaction history isn't wired up yet — this is example activity, not your real transactions.
+    </p>
 
     {RECENT_ACTIVITY.map((item, i) => (
       <div
