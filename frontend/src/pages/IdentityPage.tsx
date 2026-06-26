@@ -4,6 +4,7 @@ import { MaterialIcon, GradientButton, GradientText, Badge } from "../components
 import { useIsMobile } from "../hooks";
 import { useIdentity, ReputationLevel } from "../hooks/useIdentity";
 import type { AgentProfile, Credential } from "../hooks/useIdentity";
+import { useWalletSession } from "../context/WalletSession";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,6 +37,33 @@ function successRate(profile: AgentProfile) {
   const total = Number(profile.totalExecutions);
   if (total === 0) return 0;
   return Math.round((Number(profile.successfulExecutions) / total) * 100);
+}
+
+// ─── Connected wallet (always visible, regardless of registration status) ─────
+
+function ConnectedWalletLine({ address }: { address: string | null }) {
+  const [copied, setCopied] = useState(false);
+  if (!address) {
+    return (
+      <p style={{ color: "#f59e0b", fontSize: 13, margin: "0 0 20px", display: "flex", alignItems: "center", gap: 6 }}>
+        <MaterialIcon name="warning" size={14} /> No wallet connected — sign in first.
+      </p>
+    );
+  }
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 24px", padding: "10px 14px", borderRadius: 10, background: colors.surfaceContainerLow, border: `1px solid rgba(255,255,255,0.07)`, maxWidth: 480 }}>
+      <MaterialIcon name="account_balance_wallet" size={15} style={{ color: colors.outline, flexShrink: 0 }} />
+      <span style={{ fontSize: 12, color: colors.outline }}>Connected wallet</span>
+      <span style={{ flex: 1, fontSize: 12, color: colors.onSurface, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {address}
+      </span>
+      <button type="button" title={copied ? "Copied!" : "Copy address"} aria-label={copied ? "Copied!" : "Copy address"}
+        onClick={() => { navigator.clipboard?.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+        style={{ background: "none", border: "none", cursor: "pointer", color: copied ? "#22c55e" : colors.outline, flexShrink: 0, display: "flex" }}>
+        <MaterialIcon name={copied ? "check" : "content_copy"} size={15} />
+      </button>
+    </div>
+  );
 }
 
 // ─── Registration form ────────────────────────────────────────────────────────
@@ -300,9 +328,8 @@ type Tab = "Profile" | "Credentials" | "Activity";
 
 export const IdentityPage: React.FC = () => {
   const isMobile = useIsMobile();
-  // In production, the address comes from the connected wallet
-  const address = "GCLFFNMPD6FXBHMBK2BONRIXBWALO3EOA6NYX3BJ42QBGH6FJPQUAWE4";
-  const { profile, credentials, loading, usingMock, registered, register } = useIdentity(address);
+  const { address } = useWalletSession();
+  const { profile, credentials, loading, usingMock, registered, register } = useIdentity(address ?? undefined);
 
   const [tab,       setTab]       = useState<Tab>("Profile");
   const [proving,   setProving]   = useState<Credential | null>(null);
@@ -322,6 +349,9 @@ export const IdentityPage: React.FC = () => {
   if (!registered || registering) {
     return (
       <section className="blur-in" style={{ padding: isMobile ? 16 : 48 }}>
+        <div style={{ maxWidth: 480, margin: "0 auto 0" }}>
+          <ConnectedWalletLine address={address} />
+        </div>
         <RegisterForm onDone={() => { setRegistering(false); window.location.reload(); }} />
       </section>
     );
@@ -334,6 +364,7 @@ export const IdentityPage: React.FC = () => {
   return (
     <section className="blur-in" style={{ padding: isMobile ? 16 : 32, maxWidth: 1000, margin: "0 auto" }}>
       {proving && <ProofModal cred={proving} onClose={() => setProving(null)} />}
+      <ConnectedWalletLine address={address} />
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 32, flexWrap: "wrap" }}>
