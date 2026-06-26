@@ -13,7 +13,7 @@ const QUICK_PERCENTAGES = [
 ];
 
 function shortenSig(sig: string): string {
-  return `${sig.slice(0, 6)}â€¦${sig.slice(-6)}`;
+  return `${sig.slice(0, 6)}…${sig.slice(-6)}`;
 }
 
 export const DepositPanel: React.FC = () => {
@@ -47,7 +47,7 @@ export const DepositPanel: React.FC = () => {
     setAmount("0.00");
   };
 
-  // â”€â”€ Not connected â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Not connected ────────────────────────────────────────────────────────────
   if (!connected) {
     return (
       <div style={{
@@ -65,7 +65,7 @@ export const DepositPanel: React.FC = () => {
     );
   }
 
-  // â”€â”€ Vault not set up yet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Vault not set up yet ─────────────────────────────────────────────────────
   if (!vaultExists || !dwalletApproved) {
     return (
       <div style={{
@@ -87,7 +87,7 @@ export const DepositPanel: React.FC = () => {
         </p>
         <p style={{ color: colors.outline, fontSize: 13, marginBottom: 20 }}>
           Creates your on-chain vault, registers an Ika dWallet binding, and
-          sets encrypted strategy params â€” 5 transactions total.
+          sets encrypted strategy params — 5 transactions total.
         </p>
 
         {setupStep && (
@@ -116,13 +116,13 @@ export const DepositPanel: React.FC = () => {
           onClick={setupVault}
           disabled={loading}
         >
-          {loading ? (setupStep ?? "Setting upâ€¦") : "Setup Vault + dWallet"}
+          {loading ? (setupStep ?? "Setting up…") : "Setup Vault + dWallet"}
         </GradientButton>
       </div>
     );
   }
 
-  // â”€â”€ Vault ready â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Vault ready ──────────────────────────────────────────────────────────────
   return (
     <div style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: 20 }}>
 
@@ -288,7 +288,7 @@ export const DepositPanel: React.FC = () => {
           padding: "8px 12px", marginBottom: 12,
           fontFamily: fontFamily.body,
         }}>
-          âœ“ Tx: {shortenSig(txSig)}
+          ✓ Tx: {shortenSig(txSig)}
         </div>
       )}
 
@@ -300,7 +300,7 @@ export const DepositPanel: React.FC = () => {
         onClick={handleConfirm}
         disabled={loading}
       >
-        {loading ? "Confirmingâ€¦" : `Confirm ${activeAction}`}
+        {loading ? "Confirming…" : `Confirm ${activeAction}`}
       </GradientButton>
 
       <div style={{
