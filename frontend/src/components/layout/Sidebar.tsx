@@ -2,6 +2,7 @@ import React from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon, GradientText } from "../ui";
+import { NAV_LABEL } from "../../types";
 import type { SidebarProps, NavItem } from "../../types";
 import { UserType, USER_TYPE_META } from '../../context/UserTypeContext';
 
@@ -168,7 +169,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeNav, onNavChange, onHome
             }}
           >
             <MaterialIcon name={icon} size={20} />
-            {label}
+            {NAV_LABEL[label] ?? label}
           </button>
         );
       })}
