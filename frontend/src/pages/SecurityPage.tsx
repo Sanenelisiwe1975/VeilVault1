@@ -4,18 +4,17 @@ import { MaterialIcon } from "../components/ui";
 import { useVault } from "../hooks";
 import { useIsMobile } from "../hooks";
 
-const PROGRAM_ID = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
-const EXPLORER   = "https://stellar.expert/explorer/testnet";
+const EXPLORER = "https://stellar.expert/explorer/testnet";
 
 const CHAINS = [
-  { icon: "circle",             label: "Stellar",   note: "Native settlement layer", color: "#7DF9FF" },
-  { icon: "currency_bitcoin",   label: "Bitcoin",  note: "Ika dWallet 2PC-MPC",    color: "#F7931A" },
-  { icon: "token",              label: "Ethereum", note: "Ika dWallet 2PC-MPC",    color: "#627EEA" },
-  { icon: "real_estate_agent",  label: "RWAs",     note: "Ika dWallet 2PC-MPC",    color: colors.secondary },
+  { icon: "circle",             label: "Stellar",   note: "Native — used directly",        color: "#7DF9FF" },
+  { icon: "currency_bitcoin",   label: "Bitcoin",  note: "Via secure multi-party custody",  color: "#F7931A" },
+  { icon: "token",              label: "Ethereum", note: "Via secure multi-party custody",  color: "#627EEA" },
+  { icon: "real_estate_agent",  label: "RWAs",     note: "Via secure multi-party custody",  color: colors.secondary },
 ];
 
 export const SecurityPage: React.FC = () => {
-  const { vaultExists, dwalletApproved, vault } = useVault();
+  const { vaultExists, dwalletApproved, vault, vaultContractId } = useVault();
   const isMobile = useIsMobile();
 
   const drawdownUsedPct = vault
@@ -45,7 +44,7 @@ export const SecurityPage: React.FC = () => {
       value:   "0 s",
       status:  "no lock",
       color:   colors.tertiary,
-      desc:    "Minimum interval between strategy executions. Set to 0 for demo; production should be â‰¥ 3600s.",
+      desc:    "Minimum time between strategy executions. Set to 0 for testing; a live deployment would use a longer delay.",
     },
     {
       icon:    "verified_user",
@@ -53,33 +52,34 @@ export const SecurityPage: React.FC = () => {
       value:   "1 approved",
       status:  "owner wallet",
       color:   "#4ade80",
-      desc:    "Only whitelisted protocol addresses can receive funds. Devnet: owner wallet is the mock protocol.",
+      desc:    "Funds can only ever move to pre-approved destinations. On testnet, that's the owner wallet acting as a stand-in.",
     },
   ];
 
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 1000, margin: "0 auto" }}>
 
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <div style={{ marginBottom: 32 }}>
         <h2 style={{ fontFamily: fontFamily.headline, fontSize: isMobile ? 28 : 36, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", marginBottom: 8 }}>
           Security Overview
         </h2>
         <p style={{ color: colors.onSurfaceVariant, fontSize: 14 }}>
-          On-chain guardrails enforced by the Soroban contract on Stellar. No trusted operator can bypass these.
+          These limits are enforced automatically by the blockchain itself — not by us. No one,
+          including the team behind VeilVault, can switch them off or bypass them.
         </p>
       </div>
 
-      {/* â”€â”€ Vault status â”€â”€ */}
+      {/* ── Vault status ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)",
         gap: 12, marginBottom: 28,
       }}>
         {[
-          { label: "Vault",    icon: "lock_open",       active: vaultExists,     yes: "Initialised",   no: "Not set up"    },
-          { label: "dWallet",  icon: "hub",             active: dwalletApproved, yes: "Ika Approved",  no: "Not approved"  },
-          { label: "Strategy", icon: "visibility_off",  active: vault?.strategyParamsSet ?? false, yes: "FHE Stored", no: "Not stored" },
+          { label: "Vault",         icon: "lock_open",       active: vaultExists,     yes: "Set up",            no: "Not set up"    },
+          { label: "Multi-chain",   icon: "hub",             active: dwalletApproved, yes: "Approved",          no: "Not approved"  },
+          { label: "Strategy",      icon: "visibility_off",  active: vault?.strategyParamsSet ?? false, yes: "Saved & encrypted", no: "Not set up yet" },
         ].map(({ label, icon, active, yes, no }) => (
           <div key={label} style={{
             background: colors.surfaceContainerLow, borderRadius: 10, padding: "14px 16px",
@@ -99,10 +99,10 @@ export const SecurityPage: React.FC = () => {
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.4fr 1fr", gap: 20, marginBottom: 20 }}>
 
-        {/* â”€â”€ Guardrails â”€â”€ */}
+        {/* ── Guardrails ── */}
         <div>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 14 }}>
-            On-Chain Guardrails
+            Automatic Safety Limits
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {GUARDRAILS.map(({ icon, label, value, status, color, desc }) => (
@@ -120,15 +120,15 @@ export const SecurityPage: React.FC = () => {
           </div>
         </div>
 
-        {/* â”€â”€ Right column â”€â”€ */}
+        {/* ── Right column ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-          {/* dWallet chains */}
+          {/* Multi-chain support */}
           <div style={{ background: colors.surfaceContainerLow, borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <MaterialIcon name="hub" size={16} style={{ color: colors.primary }} />
               <p style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                Ika dWallet Chains
+                Multi-Chain Support
               </p>
               <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 700, background: dwalletApproved ? "#4ade8018" : "#64748b18",
                 color: dwalletApproved ? "#4ade80" : "#64748b", padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const }}>
@@ -144,55 +144,68 @@ export const SecurityPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Program verification */}
+          {/* Contract verification */}
           <div style={{ background: colors.surfaceContainerLow, borderRadius: 10, padding: "16px 18px" }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>
-              Program Verification
+              Verify This Contract
             </p>
-            <p style={{ fontFamily: "monospace", fontSize: 11, color: colors.primary, marginBottom: 12,
-              wordBreak: "break-all" as const }}>{PROGRAM_ID}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {[
-                { label: "View Contract",    href: `${EXPLORER}/contract/${PROGRAM_ID}`      },
-                { label: "Stellar Expert",        href: `${EXPLORER}/contract/${PROGRAM_ID}`  },
-                { label: "Security Report", href: `${EXPLORER}/contract/${PROGRAM_ID}` },
-              ].map(({ label, href }) => (
-                <button key={label} type="button"
-                  onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    background: "transparent", border: `1px solid ${colors.outlineVariant}30`,
-                    borderRadius: 6, padding: "8px 12px",
-                    color: colors.onSurfaceVariant, fontSize: 12, fontWeight: 600,
-                    cursor: "pointer", fontFamily: fontFamily.headline,
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = colors.primary + "40"; e.currentTarget.style.color = colors.primary; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = colors.outlineVariant + "30"; e.currentTarget.style.color = colors.onSurfaceVariant; }}
-                >
-                  {label}
-                  <MaterialIcon name="open_in_new" size={12} />
-                </button>
-              ))}
-            </div>
+            {vaultContractId ? (
+              <>
+                <p style={{ fontFamily: "monospace", fontSize: 11, color: colors.primary, marginBottom: 4,
+                  wordBreak: "break-all" as const }}>{vaultContractId}</p>
+                <p style={{ fontSize: 10, color: "#64748b", marginBottom: 12 }}>
+                  All three open the same public contract page — independently verifiable by anyone.
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {[
+                    { label: "Contract Overview", href: `${EXPLORER}/contract/${vaultContractId}` },
+                    { label: "Recent Activity",   href: `${EXPLORER}/contract/${vaultContractId}` },
+                    { label: "Verify Source",     href: `${EXPLORER}/contract/${vaultContractId}` },
+                  ].map(({ label, href }) => (
+                    <button key={label} type="button"
+                      onClick={() => window.open(href, "_blank", "noopener,noreferrer")}
+                      style={{
+                        display: "flex", alignItems: "center", justifyContent: "space-between",
+                        background: "transparent", border: `1px solid ${colors.outlineVariant}30`,
+                        borderRadius: 6, padding: "8px 12px",
+                        color: colors.onSurfaceVariant, fontSize: 12, fontWeight: 600,
+                        cursor: "pointer", fontFamily: fontFamily.headline,
+                        transition: "all 0.2s",
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = colors.primary + "40"; e.currentTarget.style.color = colors.primary; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = colors.outlineVariant + "30"; e.currentTarget.style.color = colors.onSurfaceVariant; }}
+                    >
+                      {label}
+                      <MaterialIcon name="open_in_new" size={12} />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p style={{ fontSize: 12, color: "#64748b" }}>Connect your wallet to see contract details.</p>
+            )}
           </div>
 
-          {/* FHE info */}
+          {/* Private computation info */}
           <div style={{ background: `linear-gradient(135deg, ${colors.primaryContainer}22, ${colors.secondaryContainer}18)`,
             borderRadius: 10, padding: "16px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <MaterialIcon name="visibility_off" size={16} style={{ color: colors.primary }} />
               <p style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                Encrypt REFHE
+                Private by Design
               </p>
               <span style={{ marginLeft: "auto", fontSize: 9, fontWeight: 700, background: `${colors.primary}18`,
                 color: colors.primary, padding: "2px 8px", borderRadius: 4, textTransform: "uppercase" as const }}>
-                Devnet Sim
+                FHE
               </span>
             </div>
             <p style={{ fontSize: 11, color: colors.onSurfaceVariant, lineHeight: 1.6 }}>
-              Strategy parameters are stored as AES-GCM ciphertexts. Only the SHA-256 hash commitment
-              is public. Production swaps to real REFHE with no program changes.
+              Your strategy settings are encrypted before they ever leave your device. Only a public
+              fingerprint is stored on-chain — enough to verify nothing was tampered with, without
+              revealing the settings themselves.
+            </p>
+            <p style={{ fontSize: 10, color: "#475569", marginTop: 8 }}>
+              Technical: AES-GCM ciphertext with a SHA-256 commitment hash; testnet uses a simulated FHE backend.
             </p>
           </div>
         </div>

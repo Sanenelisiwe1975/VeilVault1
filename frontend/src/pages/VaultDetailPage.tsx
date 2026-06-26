@@ -25,6 +25,17 @@ export const VaultDetailPage: React.FC = () => {
     ? `+${(vault.yieldEarnedSol / Math.max(vault.totalDepositedSol, 0.0001) * 100).toFixed(2)}%`
     : "—";
 
+  const advancedSection = (
+    <CollapsibleSection
+      title="Advanced: automation tools"
+      subtitle="Manual strategy controls for agents/developers — most people don't need these"
+      icon="terminal"
+    >
+      <PerformancePanel />
+      <AgentPanel />
+    </CollapsibleSection>
+  );
+
   return (
     <section className="blur-in" style={{ padding: isMobile ? "16px" : "32px", maxWidth: 1200, margin: "0 auto" }}>
 
@@ -34,19 +45,18 @@ export const VaultDetailPage: React.FC = () => {
           <VaultDetailHeader
             breadcrumb="VeilVault — Encrypted Yield"
             title="Encrypted Yield Vault"
-            description="Deposit native XLM (or bridgeless BTC/ETH via Ika dWallet). Strategy params are FHE-encrypted; guardrails enforced on-chain."
+            description="Deposit XLM and earn yield automatically. Your strategy stays private and encrypted, and built-in limits protect your funds — enforced directly on the blockchain, not by us."
             netApy={yieldDisplay}
             tvl={tvlDisplay}
           />
           <DepositPanel />
-          <PerformancePanel />
-          <AgentPanel />
           <VaultAPYChart />
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
             <InvestmentStrategy />
-            <SecurityBadges />
+            <SecurityBadges contractId={vaultContractId} />
           </div>
           <RecentActivityPanel />
+          {advancedSection}
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 24 }}>
@@ -55,22 +65,21 @@ export const VaultDetailPage: React.FC = () => {
             <VaultDetailHeader
               breadcrumb="VeilVault — Encrypted Yield"
               title="Encrypted Yield Vault"
-              description="Deposit native XLM (or bridgeless BTC/ETH via Ika dWallet). Strategy params are FHE-encrypted; guardrails enforced on-chain."
+              description="Deposit XLM and earn yield automatically. Your strategy stays private and encrypted, and built-in limits protect your funds — enforced directly on the blockchain, not by us."
               netApy={yieldDisplay}
               tvl={tvlDisplay}
             />
             <VaultAPYChart />
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
               <InvestmentStrategy />
-              <SecurityBadges />
+              <SecurityBadges contractId={vaultContractId} />
             </div>
+            {advancedSection}
           </div>
 
           {/* ── Right column ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <DepositPanel />
-            <PerformancePanel />
-            <AgentPanel />
             <RecentActivityPanel />
           </div>
         </div>

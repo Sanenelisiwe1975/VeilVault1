@@ -1,6 +1,6 @@
 ﻿import React, { useState } from "react";
 import { colors, fontFamily } from "../constants/theme";
-import { MaterialIcon, GradientButton } from "../components/ui";
+import { MaterialIcon, GradientButton, CollapsibleSection } from "../components/ui";
 import { useVault } from "../hooks";
 import { useIsMobile } from "../hooks";
 import { X402_FEE_LAMPORTS, formatX402Fee } from "../../lib/x402";
@@ -15,7 +15,6 @@ function shortenSig(sig: string) {
 }
 
 const EXPLORER = "https://stellar.expert/explorer/testnet";
-const PROGRAM  = "G8SzxHU2uHnxNSvjXhdgfHmjGjBL4hdzm1frkHyYbusS";
 
 const PRESETS = [
   { label: "Conservative", drawdown: 500,  rebalance: 300, stopLoss: 800  },
@@ -25,7 +24,7 @@ const PRESETS = [
 
 export const StrategyPage: React.FC = () => {
   const {
-    vaultExists, dwalletApproved, vault,
+    vaultExists, dwalletApproved, vault, vaultContractId,
     loading, error, txSig,
     updateStrategyParams, executeStrategy,
   } = useVault();
@@ -48,15 +47,16 @@ export const StrategyPage: React.FC = () => {
           borderRadius: 6, padding: "5px 14px", marginBottom: 16 }}>
           <MaterialIcon name="visibility_off" size={13} style={{ color: colors.primary }} />
           <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", color: colors.primary, textTransform: "uppercase" }}>
-            Encrypt REFHE — FHE Active
+            Private & protected
           </span>
         </div>
         <h2 style={{ fontFamily: fontFamily.headline, fontSize: isMobile ? 28 : 36, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", marginBottom: 8 }}>
-          Strategy Parameters
+          Investment Settings
         </h2>
         <p style={{ color: colors.onSurfaceVariant, fontSize: 14 }}>
-          Parameters are AES-GCM encrypted via Encrypt REFHE before being stored on-chain.
-          Only the SHA-256 hash commitment is public — execution logic stays hidden.
+          Choose how cautious or aggressive your investments should be. Your exact settings
+          are encrypted — only a public fingerprint of them is stored, so no one (including us)
+          can see or front-run your strategy.
         </p>
       </div>
 
@@ -64,21 +64,21 @@ export const StrategyPage: React.FC = () => {
       {vault && (
         <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, padding: 20, marginBottom: 24 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 12 }}>
-            On-chain commitment
+            Your saved settings
           </p>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div>
               <p style={{ fontFamily: "monospace", fontSize: 13, color: vault.strategyParamsSet ? colors.primary : "#64748b" }}>
-                {vault.strategyParamsSet ? shortenHash(vault.strategyParamsHash) : "No params stored yet"}
+                {vault.strategyParamsSet ? shortenHash(vault.strategyParamsHash) : "Nothing saved yet"}
               </p>
               <p style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>
-                {vault.strategyParamsSet ? "SHA-256 ciphertext commitment" : "Set params below to store on-chain"}
+                {vault.strategyParamsSet ? "Encrypted and verified on-chain" : "Choose a setting below to get started"}
               </p>
             </div>
-            {vault.strategyParamsSet && (
+            {vault.strategyParamsSet && vaultContractId && (
               <button
                 type="button"
-                onClick={() => window.open(`${EXPLORER}/contract/${PROGRAM}`, "_blank")}
+                onClick={() => window.open(`${EXPLORER}/contract/${vaultContractId}`, "_blank")}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
                   background: "transparent", border: `1px solid ${colors.outlineVariant}40`,
@@ -121,15 +121,15 @@ export const StrategyPage: React.FC = () => {
           </div>
 
           {[
-            { label: "Max Drawdown",       value: drawdown,  setter: setDrawdown,  max: 5000, unit: "bps" },
-            { label: "Rebalance Trigger",  value: rebalance, setter: setRebalance, max: 2000, unit: "bps" },
-            { label: "Stop Loss",          value: stopLoss,  setter: setStopLoss,  max: 5000, unit: "bps" },
-          ].map(({ label, value, setter, max, unit }) => (
+            { label: "Maximum loss you'll tolerate", value: drawdown,  setter: setDrawdown,  max: 5000 },
+            { label: "Auto-adjust sensitivity",       value: rebalance, setter: setRebalance, max: 2000 },
+            { label: "Stop-loss limit",               value: stopLoss,  setter: setStopLoss,  max: 5000 },
+          ].map(({ label, value, setter, max }) => (
             <div key={label} style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <span style={{ fontSize: 12, color: colors.onSurfaceVariant }}>{label}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: "#fff", fontFamily: "monospace" }}>
-                  {value} {unit} ({(value / 100).toFixed(1)}%)
+                  {(value / 100).toFixed(1)}% <span style={{ color: "#64748b", fontWeight: 400 }}>({value} bps)</span>
                 </span>
               </div>
               <input
@@ -146,7 +146,7 @@ export const StrategyPage: React.FC = () => {
             background: `${colors.primary}08`, borderRadius: 8 }}>
             <MaterialIcon name="lock" size={14} style={{ color: colors.primary }} />
             <span style={{ fontSize: 11, color: colors.onSurfaceVariant }}>
-              Will be AES-GCM encrypted via Encrypt REFHE before storing
+              These settings stay encrypted and private once saved
             </span>
           </div>
 
@@ -166,7 +166,7 @@ export const StrategyPage: React.FC = () => {
             onClick={() => updateStrategyParams(drawdown, rebalance, stopLoss)}
             disabled={loading || !ready}
           >
-            {loading ? "Encrypting & Storing…" : "Encrypt & Store On-Chain"}
+            {loading ? "Saving…" : "Save Settings"}
           </GradientButton>
           {!ready && (
             <p style={{ fontSize: 11, color: "#64748b", textAlign: "center", marginTop: 8 }}>
@@ -175,73 +175,17 @@ export const StrategyPage: React.FC = () => {
           )}
         </div>
 
-        {/* ── Execution panel ── */}
+        {/* ── How it works info card ── */}
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-          {/* Execute strategy */}
-          <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, padding: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-              <MaterialIcon name="play_circle" size={16} style={{ color: colors.tertiary }} />
-              <p style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 13, color: "#fff" }}>
-                Execute Strategy
-              </p>
-              {vault?.strategyParamsSet && (
-                <span style={{
-                  marginLeft: "auto", fontSize: 9, fontWeight: 700,
-                  background: `${colors.tertiary}18`, color: colors.tertiary,
-                  padding: "3px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em",
-                }}>FHE Active</span>
-              )}
-            </div>
-            <p style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>
-              Transfers XLM from vault to protocol under FHE guardrails. Proof is built from the on-chain strategy hash.
-            </p>
-
-            {/* x402 fee banner */}
-            <div style={{
-              display: "flex", alignItems: "center", gap: 8,
-              background: "#F7931A18", borderRadius: 8, padding: "8px 12px", marginBottom: 12,
-            }}>
-              <span style={{ fontSize: 10, fontWeight: 800, color: "#F7931A", letterSpacing: "0.05em" }}>402</span>
-              <span style={{ fontSize: 11, color: "#94a3b8", flex: 1 }}>
-                Payment required · {formatX402Fee(X402_FEE_LAMPORTS)} micropayment bundled atomically with execution
-              </span>
-              <span style={{ fontSize: 9, fontWeight: 700, color: "#F7931A", background: "#F7931A18",
-                padding: "2px 7px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
-                x402
-              </span>
-            </div>
-
-            <input
-              type="number" min="0.001" step="0.01" value={execAmt}
-              onChange={e => setExecAmt(e.target.value)}
-              style={{
-                width: "100%", background: colors.surfaceContainerHighest,
-                border: "none", borderRadius: 8, padding: "10px 12px",
-                color: "#fff", fontSize: 14, outline: "none",
-                fontFamily: fontFamily.headline, marginBottom: 10,
-              }}
-            />
-            <GradientButton
-              fullWidth
-              onClick={() => executeStrategy(parseFloat(execAmt))}
-              disabled={loading || !vault?.strategyParamsSet}
-              style={{ background: `linear-gradient(135deg, ${colors.tertiaryContainer}, ${colors.tertiary})` }}
-            >
-              {loading ? "Executing…" : "Execute Under FHE Guardrails"}
-            </GradientButton>
-          </div>
-
-          {/* How it works info card */}
           <div style={{ background: colors.surfaceContainerLow, borderRadius: 12, padding: 20 }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 14 }}>
-              How FHE Strategy Works
+              How this works
             </p>
             {[
-              { icon: "lock",         text: "Strategy params encrypted via Encrypt REFHE" },
-              { icon: "fingerprint",  text: "SHA-256 hash stored as on-chain commitment"  },
-              { icon: "shield_lock",  text: "Proof verified against hash before execution" },
-              { icon: "verified",     text: "4 guardrails enforced by Soroban contract"      },
+              { icon: "lock",         text: "Your settings are encrypted before they're saved" },
+              { icon: "fingerprint",  text: "Only a public fingerprint is stored on-chain"     },
+              { icon: "shield_lock",  text: "That fingerprint is checked before anything runs" },
+              { icon: "verified",     text: "Four automatic safety limits are always enforced" },
             ].map(({ icon, text }) => (
               <div key={text} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <MaterialIcon name={icon} size={14} style={{ color: colors.primary, flexShrink: 0 }} />
@@ -249,6 +193,67 @@ export const StrategyPage: React.FC = () => {
               </div>
             ))}
           </div>
+
+          <CollapsibleSection
+            title="Advanced: manual execution"
+            subtitle="Directly trigger a strategy run — most people don't need this"
+            icon="terminal"
+          >
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+                <MaterialIcon name="play_circle" size={16} style={{ color: colors.tertiary }} />
+                <p style={{ fontFamily: fontFamily.headline, fontWeight: 700, fontSize: 13, color: "#fff" }}>
+                  Execute Strategy
+                </p>
+                {vault?.strategyParamsSet && (
+                  <span style={{
+                    marginLeft: "auto", fontSize: 9, fontWeight: 700,
+                    background: `${colors.tertiary}18`, color: colors.tertiary,
+                    padding: "3px 8px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em",
+                  }}>FHE Active</span>
+                )}
+              </div>
+              <p style={{ fontSize: 12, color: "#475569", marginBottom: 12 }}>
+                Transfers XLM from vault to protocol under FHE guardrails. Proof is built from the on-chain strategy hash.
+              </p>
+
+              {/* x402 fee banner */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 8,
+                background: "#F7931A18", borderRadius: 8, padding: "8px 12px", marginBottom: 12,
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 800, color: "#F7931A", letterSpacing: "0.05em" }}>402</span>
+                <span style={{ fontSize: 11, color: "#94a3b8", flex: 1 }}>
+                  Payment required · {formatX402Fee(X402_FEE_LAMPORTS)} micropayment bundled atomically with execution
+                </span>
+                <span style={{ fontSize: 9, fontWeight: 700, color: "#F7931A", background: "#F7931A18",
+                  padding: "2px 7px", borderRadius: 4, textTransform: "uppercase" as const, letterSpacing: "0.1em" }}>
+                  x402
+                </span>
+              </div>
+
+              <input
+                type="number" min="0.001" step="0.01" value={execAmt}
+                onChange={e => setExecAmt(e.target.value)}
+                aria-label="Amount of XLM to execute"
+                placeholder="Amount in XLM"
+                style={{
+                  width: "100%", background: colors.surfaceContainerHighest,
+                  border: "none", borderRadius: 8, padding: "10px 12px",
+                  color: "#fff", fontSize: 14, outline: "none",
+                  fontFamily: fontFamily.headline, marginBottom: 10,
+                }}
+              />
+              <GradientButton
+                fullWidth
+                onClick={() => executeStrategy(parseFloat(execAmt))}
+                disabled={loading || !vault?.strategyParamsSet}
+                style={{ background: `linear-gradient(135deg, ${colors.tertiaryContainer}, ${colors.tertiary})` }}
+              >
+                {loading ? "Executing…" : "Execute Under FHE Guardrails"}
+              </GradientButton>
+            </div>
+          </CollapsibleSection>
         </div>
       </div>
     </section>
