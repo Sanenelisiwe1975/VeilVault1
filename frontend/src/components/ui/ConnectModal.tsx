@@ -11,11 +11,25 @@ interface Props {
   required?:   boolean;
 }
 
-type Mode = "choose" | "secret-key" | "passkey";
+type Mode = "simple" | "advanced" | "secret-key" | "passkey";
+
+/** Translate raw error text (which may mention fetch/network/WebAuthn internals)
+ *  into copy an average, non-technical user can act on. Raw detail still goes
+ *  to console.error for debugging. */
+function friendlyMessage(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed")) {
+    return "We're having trouble connecting right now. Check your connection and try again.";
+  }
+  if (lower.includes("notallowederror") || lower.includes("cancel") || lower.includes("timed out")) {
+    return "Sign-in was cancelled.";
+  }
+  return "We couldn't sign you in. Please try again.";
+}
 
 export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }) => {
   const { connect, connectFreighter, registerPasskeyWallet, loginPasskeyWallet, storedPasskeyWallet } = useWalletSession();
-  const [mode,     setMode]     = useState<Mode>("choose");
+  const [mode,     setMode]     = useState<Mode>("simple");
   const [sk,       setSk]       = useState("");
   const [userName, setUserName] = useState("");
   const [error,    setError]    = useState("");
@@ -30,7 +44,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
     setError("");
     const result = await connectFreighter();
     setLoading(false);
-    if ("error" in result) { setError(result.error); return; }
+    if ("error" in result) { console.error(result.error); setError(friendlyMessage(result.error)); return; }
     onConnected?.(result.address);
     onClose?.();
   };
@@ -40,18 +54,18 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
     setError("");
     const result = await loginPasskeyWallet();
     setLoading(false);
-    if ("error" in result) { setError(result.error); return; }
+    if ("error" in result) { console.error(result.error); setError(friendlyMessage(result.error)); return; }
     onConnected?.(result.address);
     onClose?.();
   };
 
-  const handlePasskeyRegister = async () => {
-    if (!userName.trim()) { setError("Enter a display name first."); return; }
+  const handlePasskeyRegister = async (emptyMessage = "Enter a display name first.") => {
+    if (!userName.trim()) { setError(emptyMessage); return; }
     setLoading(true);
     setError("");
     const result = await registerPasskeyWallet(userName.trim());
     setLoading(false);
-    if ("error" in result) { setError(result.error); return; }
+    if ("error" in result) { console.error(result.error); setError(friendlyMessage(result.error)); return; }
     onConnected?.(result.address);
     onClose?.();
   };
@@ -59,7 +73,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
   const handleSecretKey = () => {
     setError("");
     const result = connect(sk);
-    if ("error" in result) { setError(result.error); return; }
+    if ("error" in result) { console.error(result.error); setError(friendlyMessage(result.error)); return; }
     onConnected?.(result.address);
     onClose?.();
   };
@@ -71,7 +85,10 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <GradientText style={{ fontSize: 20, fontWeight: 800, fontFamily: fontFamily.headline }}>
-            {mode === "choose" ? "Connect Wallet" : mode === "passkey" ? "Create Passkey Wallet" : "Enter Secret Key"}
+            {mode === "simple"   ? (storedPasskeyWallet ? "Welcome back" : "Sign in to Veil Vault")
+            : mode === "advanced" ? "Connect Wallet"
+            : mode === "passkey"  ? "Create Passkey Wallet"
+            : "Enter Secret Key"}
           </GradientText>
           {!required && onClose && (
             <button type="button" aria-label="Close" onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline }}>
@@ -88,8 +105,61 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
           </div>
         )}
 
-        {mode === "choose" && (
+        {mode === "simple" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <p style={{ margin: "-8px 0 4px", fontSize: 13, color: colors.outline, lineHeight: 1.6 }}>
+              {storedPasskeyWallet
+                ? "Use your device's Face ID, fingerprint, or screen lock to continue."
+                : "We'll set up secure sign-in using your device's Face ID, fingerprint, or screen lock — no password to remember."}
+            </p>
+
+            {!storedPasskeyWallet && (
+              <div>
+                <label style={{ fontSize: 11, color: colors.outline, textTransform: "uppercase" as const, letterSpacing: "0.08em", display: "block", marginBottom: 6 }}>
+                  Email or phone number
+                </label>
+                <input
+                  type="text"
+                  value={userName}
+                  onChange={e => { setUserName(e.target.value); setError(""); }}
+                  placeholder="you@example.com"
+                  autoComplete="username"
+                  spellCheck={false}
+                  autoFocus
+                  onKeyDown={e => e.key === "Enter" && userName.trim() && handlePasskeyRegister("Enter your email or phone number to continue.")}
+                  style={{ background: colors.surfaceContainerHigh, border: `1px solid rgba(255,255,255,0.1)`, borderRadius: 10, padding: "13px 14px", color: colors.onSurface, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" as const }}
+                />
+              </div>
+            )}
+
+            <GradientButton
+              onClick={() => storedPasskeyWallet ? handlePasskeyLogin() : handlePasskeyRegister("Enter your email or phone number to continue.")}
+              disabled={loading || !passkeySupported || (!storedPasskeyWallet && !userName.trim())}
+              size="lg"
+            >
+              {loading ? "Signing you in…" : "Continue →"}
+            </GradientButton>
+
+            {!passkeySupported && (
+              <p style={{ margin: 0, fontSize: 12, color: "#f59e0b", textAlign: "center" as const }}>
+                Your browser doesn't support secure sign-in. Try a different browser or device, or use the option below.
+              </p>
+            )}
+
+            <button type="button" onClick={() => { setMode("advanced"); setError(""); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline, fontSize: 12, fontFamily: fontFamily.body, textAlign: "center" as const, padding: "4px 0 0" }}>
+              I already have a crypto wallet
+            </button>
+          </div>
+        )}
+
+        {mode === "advanced" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <button type="button" onClick={() => { setMode("simple"); setError(""); }}
+              style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: colors.outline, padding: 0, fontSize: 13, fontFamily: fontFamily.body, marginBottom: 4 }}>
+              <MaterialIcon name="arrow_back" size={16} /> Back
+            </button>
+
             {/* Freighter button */}
             <button type="button" onClick={handleFreighter} disabled={loading}
               style={{ width: "100%", padding: "16px", borderRadius: 14, border: `1.5px solid ${freighterAvailable ? colors.primaryContainer + "55" : "rgba(255,255,255,0.1)"}`, background: freighterAvailable ? `${colors.primaryContainer}18` : colors.surfaceContainerHigh, cursor: "pointer", display: "flex", alignItems: "center", gap: 14, textAlign: "left" as const }}>
@@ -153,7 +223,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
 
         {mode === "secret-key" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <button type="button" onClick={() => { setMode("choose"); setError(""); setSk(""); }}
+            <button type="button" onClick={() => { setMode("advanced"); setError(""); setSk(""); }}
               style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: colors.outline, padding: 0, fontSize: 13, fontFamily: fontFamily.body, marginBottom: 4 }}>
               <MaterialIcon name="arrow_back" size={16} /> Back
             </button>
@@ -195,7 +265,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
 
         {mode === "passkey" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <button type="button" onClick={() => { setMode("choose"); setError(""); setUserName(""); }}
+            <button type="button" onClick={() => { setMode("advanced"); setError(""); setUserName(""); }}
               style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", color: colors.outline, padding: 0, fontSize: 13, fontFamily: fontFamily.body, marginBottom: 4 }}>
               <MaterialIcon name="arrow_back" size={16} /> Back
             </button>
@@ -223,7 +293,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
               </p>
             </div>
 
-            <GradientButton onClick={handlePasskeyRegister} disabled={!userName.trim() || loading} size="lg">
+            <GradientButton onClick={() => handlePasskeyRegister()} disabled={!userName.trim() || loading} size="lg">
               {loading ? "Creating wallet…" : "Create Passkey →"}
             </GradientButton>
           </div>
