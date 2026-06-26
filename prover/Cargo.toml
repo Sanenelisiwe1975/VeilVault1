@@ -8,6 +8,8 @@ name = "veilpool-prover"
 path = "src/main.rs"
 
 [dependencies]
+veilpool-prover-core = { path = "../prover-core" }
+
 # arkworks BLS12-381 Groth16 stack
 ark-bls12-381       = "0.4"
 ark-groth16         = { version = "0.4", features = ["r1cs"] }
