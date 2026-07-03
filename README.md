@@ -8,6 +8,17 @@ At the core is a single shared yield engine (`vault`) with on-chain guardrails. 
 
 See [ROADMAP.md](ROADMAP.md) for what's built today versus what's next (security audit, mainnet, agent pilots, sustainability).
 
+## Planned Features (not yet built)
+
+These are designed but intentionally **not** in the current UI — nothing ships as a mock. Each has a concrete, Stellar-native implementation path:
+
+| Feature | How it will work | Status |
+|---|---|---|
+| **Top up / Cash out in Rand** (card, EFT, M-Pesa / MoMo) | [SEP-24](https://developers.stellar.org/docs/anchoring-assets) interactive deposits/withdrawals through regulated Stellar anchors; demoable today against the SDF test anchor | Designed — next milestone |
+| **Conversational AI assistant** ("How much have I earned?", "Move R 200 to the safest strategy") | LLM endpoint over the existing agent API, reading real vault balances and executing moves through the guardrailed vault contract, with an x402 micro-payment per action | Designed — backend primitives (agent API, x402, guardrails) already live |
+| **Backup-device nudge at sign-up** ("protect against a lost phone") | Surfaces the existing multi-signer smart-wallet `add_signer` flow (already working end-to-end, currently in Settings) as a skippable onboarding step | UX placement only — feature is live |
+| **Recovery contact (email / phone)** | Collected at sign-up for account-recovery and alerts — never a login credential (sign-in stays passkey-only) | Designed |
+
 ---
 
 ## Architecture Overview
