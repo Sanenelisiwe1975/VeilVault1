@@ -551,7 +551,7 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
 function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onSkip: () => void }) {
   const { address, secretKey, walletType, invokeAsPasskeyWallet } = useWalletSession();
   const [amount,  setAmount]  = useState("10");
-  const [asset,   setAsset]   = useState("XLM");
+  const asset = "XLM"; // the vault is XLM-native
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState("");
 
@@ -599,16 +599,8 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
         subtitle="Start small — you can add more or take it out anytime."
       />
 
-      <Field label="Asset">
-        <div style={{ display: "flex", gap: 8 }}>
-          {["XLM", "USDC"].map(a => (
-            <button key={a} type="button" onClick={() => setAsset(a)}
-              style={{ flex: 1, padding: "11px", borderRadius: 10, border: `1.5px solid ${asset === a ? colors.primary : "rgba(255,255,255,0.1)"}`, background: asset === a ? `${colors.primary}18` : colors.surfaceContainerHigh, color: asset === a ? colors.primary : colors.onSurface, cursor: "pointer", fontSize: 14, fontWeight: 700, fontFamily: fontFamily.headline }}>
-              {a}
-            </button>
-          ))}
-        </div>
-      </Field>
+      {/* The vault is XLM-native — offering other assets here would desync the
+          UI from what the deposit actually does. */}
 
       <Field label="Amount">
         <div style={{ position: "relative" }}>
