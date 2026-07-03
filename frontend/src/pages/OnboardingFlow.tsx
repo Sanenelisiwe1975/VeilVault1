@@ -15,6 +15,7 @@ import { useWalletSession } from "../context/WalletSession";
 import { useUserType } from "../hooks/useUserType";
 import { api } from "../lib/api";
 import { isPasskeySupported, type ScValArgSpec } from "../lib/passkey";
+import { xlmToZar, usdcToZar, formatZar } from "../lib/currency";
 
 //Persistence 
 
@@ -614,6 +615,11 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
           <input style={{ ...INPUT, paddingRight: 60 }} type="number" min={1} value={amount} onChange={e => setAmount(e.target.value)} />
           <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", color: colors.outline, fontSize: 14, fontWeight: 600 }}>{asset}</span>
         </div>
+        {Number(amount) > 0 && (
+          <span style={{ fontSize: 12, color: colors.outline }}>
+            ≈ {formatZar(asset === "XLM" ? xlmToZar(Number(amount)) : usdcToZar(Number(amount)))}
+          </span>
+        )}
         <div style={{ display: "flex", gap: 6 }}>
           {["10", "50", "100"].map(v => (
             <button key={v} type="button" onClick={() => setAmount(v)}

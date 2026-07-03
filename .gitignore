@@ -48,3 +48,4 @@ coverage/
 .jest-cache/
 
 .vercel
+.smart-wallet-wasm-hash

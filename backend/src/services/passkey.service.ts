@@ -338,8 +338,8 @@ const STARTER_XLM_STROOPS = 100n * 10_000_000n; // 100 XLM
 function fundNewWalletWithStarterXlm(walletAddress: string): void {
   if (config.STELLAR_NETWORK !== 'testnet') return;
   const admin = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
-  getStellarClient()
-    .invokeContract(
+  const attempt = () =>
+    getStellarClient().invokeContract(
       NATIVE_XLM_SAC_TESTNET,
       'transfer',
       [
@@ -348,9 +348,23 @@ function fundNewWalletWithStarterXlm(walletAddress: string): void {
         nativeToScVal(STARTER_XLM_STROOPS, { type: 'i128' }),
       ],
       config.ADMIN_SECRET_KEY,
-    )
-    .then(() => log.info({ walletAddress }, 'New wallet funded with starter XLM'))
-    .catch(err => log.warn({ walletAddress, err: (err as Error).message }, 'Starter XLM funding failed'));
+    );
+
+  // Registration's own admin transaction confirmed milliseconds ago, so the
+  // admin account's sequence number may not have propagated yet — wait a
+  // ledger first, then retry a couple of times on failure.
+  (async () => {
+    for (let i = 0; i < 3; i++) {
+      await new Promise(r => setTimeout(r, 6_000));
+      try {
+        await attempt();
+        log.info({ walletAddress }, 'New wallet funded with starter XLM');
+        return;
+      } catch (err) {
+        log.warn({ walletAddress, attempt: i + 1, err: (err as Error).message }, 'Starter XLM funding attempt failed');
+      }
+    }
+  })();
 }
 
 // ─── Login (sign in with an existing passkey) ──────────────────────────────

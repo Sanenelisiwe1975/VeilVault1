@@ -28,18 +28,13 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
     return;
   }
 
-  const token     = authHeader.slice(7);
-  const tokenHash = sha256Hex(token);
+  const token = authHeader.slice(7);
 
-  // ── 1. Static API key ────────────────────────────────────────────────────────
-  if (!config.API_KEY_HASH || tokenHash === config.API_KEY_HASH) {
-    req.agentId = req.headers['x-agent-id'] as string | undefined;
-    req.isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
-    next();
-    return;
-  }
-
-  // ── 2. Session token from /api/auth/token ─────────────────────────────────
+  // ── 1. Session token (passkey / SEP-10) ─────────────────────────────────────
+  // Checked FIRST: it carries the wallet identity. When API_KEY_HASH is unset
+  // (dev), the static-key branch below accepts ANY token — if that ran first,
+  // valid session tokens would be misclassified as API keys and never set
+  // req.walletAddress, breaking every passkey transaction route in dev.
   // Dynamic import avoids a circular-dependency with auth.routes.ts at startup.
   import('../routes/auth.routes').then(({ validateSessionToken }) => {
     const session = validateSessionToken(token);
@@ -47,6 +42,14 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
       req.walletAddress = session.address;
       req.agentId       = session.address;
       req.isAdmin       = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
+      next();
+      return;
+    }
+
+    // ── 2. Static API key (exact match; any token accepted when unset in dev) ──
+    if (!config.API_KEY_HASH || sha256Hex(token) === config.API_KEY_HASH) {
+      req.agentId = req.headers['x-agent-id'] as string | undefined;
+      req.isAdmin = req.headers['x-admin-key'] === process.env.ADMIN_KEY;
       next();
       return;
     }
