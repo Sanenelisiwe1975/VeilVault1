@@ -18,11 +18,23 @@ type Mode = "simple" | "advanced" | "secret-key" | "passkey";
  *  to console.error for debugging. */
 function friendlyMessage(raw: string): string {
   const lower = raw.toLowerCase();
+  if (lower.includes("vv_server_unreachable") || lower.includes("unexpected token") || lower.includes("not valid json")) {
+    return "We can't reach the VeilVault server right now. Please try again in a few minutes.";
+  }
   if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed")) {
     return "We're having trouble connecting right now. Check your connection and try again.";
   }
   if (lower.includes("notallowederror") || lower.includes("cancel") || lower.includes("timed out")) {
     return "Sign-in was cancelled.";
+  }
+  if (lower.includes("securityerror") || lower.includes("relying party") || lower.includes("invalid domain")) {
+    return "Sign-in isn't set up for this web address yet. Please contact support.";
+  }
+  if (lower.includes("failed to start passkey") || lower.includes("http 5")) {
+    return "The server had a problem starting sign-in. Please try again shortly.";
+  }
+  if (lower.includes("unexpected registration") || lower.includes("unexpected authentication") || lower.includes("origin")) {
+    return "Sign-in isn't set up for this web address yet. Please contact support.";
   }
   return "We couldn't sign you in. Please try again.";
 }

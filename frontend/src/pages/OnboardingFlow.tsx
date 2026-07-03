@@ -14,6 +14,7 @@ import { useIsMobile } from "../hooks";
 import { useWalletSession } from "../context/WalletSession";
 import { useUserType } from "../hooks/useUserType";
 import { api } from "../lib/api";
+import { isPasskeySupported, type ScValArgSpec } from "../lib/passkey";
 
 //Persistence 
 
@@ -306,46 +307,94 @@ function StepHeader({ icon, iconBg, iconColor, title, subtitle }: {
   );
 }
 
-//Step 1 — Identity 
+//Step 1 — Profile
+
+/** Translate raw connection/WebAuthn errors into copy a non-technical user can act on.
+ *  Raw detail still goes to console.error for debugging. */
+function friendlyError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes("vv_server_unreachable") || lower.includes("unexpected token") || lower.includes("not valid json")) {
+    return "We can't reach the VeilVault server right now. Please try again in a few minutes.";
+  }
+  if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network request failed")) {
+    return "We're having trouble connecting right now. Check your internet and try again.";
+  }
+  if (lower.includes("notallowederror") || lower.includes("cancel") || lower.includes("timed out")) {
+    return "Sign-in was cancelled. Tap the button to try again.";
+  }
+  if (lower.includes("securityerror") || lower.includes("relying party") || lower.includes("invalid domain") || lower.includes("origin")) {
+    return "Sign-in isn't set up for this web address yet. Please contact support.";
+  }
+  if (lower.includes("failed to start passkey") || lower.includes("http 5")) {
+    return "The server had a problem starting sign-in. Please try again shortly.";
+  }
+  if (lower.includes("invalid stellar secret key")) {
+    return "That key doesn't look right — it should start with 'S' and be 56 characters long.";
+  }
+  return "Something went wrong. Please try again.";
+}
 
 function IdentityStep({ onNext }: { onNext: (data: { name: string; address: string }) => void }) {
-  const { connect, address: sessionAddress, secretKey } = useWalletSession();
-  const [name,      setName]      = useState("");
-  const [address,   setAddress]   = useState(sessionAddress ?? "");
-  const [sk,        setSk]        = useState("");
-  const [loading,   setLoading]   = useState(false);
-  const [connError, setConnError] = useState("");
+  const {
+    connect, connectFreighter, registerPasskeyWallet, loginPasskeyWallet,
+    storedPasskeyWallet, address: sessionAddress, secretKey,
+  } = useWalletSession();
+  const [name,        setName]        = useState("");
+  const [sk,          setSk]          = useState("");
+  const [showWallets, setShowWallets] = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [error,       setError]       = useState("");
 
-  const submit = async () => {
-    if (!name.trim()) return;
-    setLoading(true);
-    setConnError("");
+  const passkeySupported = isPasskeySupported();
 
-    // Try to connect wallet if secret key provided
-    let resolvedAddress = address.trim() || sessionAddress;
-    if (sk.trim() && !sessionAddress) {
-      const res = connect(sk.trim());
-      if ("error" in res) { setConnError(res.error); setLoading(false); return; }
-      resolvedAddress = res.address;
-    }
-
-    // Register identity on chain if we have a key
-    if (resolvedAddress && (secretKey || sk.trim())) {
+  // Register the on-chain identity when we hold a signing key (best-effort —
+  // passkey wallets register through their own contract flow later).
+  const finishWith = async (addr: string, signerSecret: string | null) => {
+    if (addr && signerSecret) {
       try {
         await api.post("/registry/register", {
-          agent:        resolvedAddress,
-          did:          `did:stellar:${resolvedAddress}`,
+          agent:        addr,
+          did:          `did:stellar:${addr}`,
           vcHash:       "0".repeat(64),
           vcUri:        "https://vc.veilVault1.app/cred/default",
-          signerSecret: sk.trim() || secretKey,
+          signerSecret,
         });
       } catch {
         // Non-fatal — identity registration can retry later
       }
     }
-
     setLoading(false);
-    onNext({ name, address: resolvedAddress ?? "" });
+    onNext({ name: name.trim(), address: addr });
+  };
+
+  const submitPasskey = async () => {
+    if (!name.trim()) return;
+    setLoading(true); setError("");
+    const res = storedPasskeyWallet ? await loginPasskeyWallet() : await registerPasskeyWallet(name.trim());
+    if ("error" in res) { console.error(res.error); setError(friendlyError(res.error)); setLoading(false); return; }
+    await finishWith(res.address, null);
+  };
+
+  const submitConnected = async () => {
+    if (!name.trim() || !sessionAddress) return;
+    setLoading(true); setError("");
+    await finishWith(sessionAddress, secretKey);
+  };
+
+  const submitFreighter = async () => {
+    if (!name.trim()) { setError("Enter your name first."); return; }
+    setLoading(true); setError("");
+    const res = await connectFreighter();
+    if ("error" in res) { console.error(res.error); setError(friendlyError(res.error)); setLoading(false); return; }
+    await finishWith(res.address, null);
+  };
+
+  const submitSecretKey = async () => {
+    if (!name.trim()) { setError("Enter your name first."); return; }
+    setLoading(true); setError("");
+    const res = connect(sk.trim());
+    if ("error" in res) { console.error(res.error); setError(friendlyError(res.error)); setLoading(false); return; }
+    await finishWith(res.address, sk.trim());
   };
 
   return (
@@ -354,38 +403,77 @@ function IdentityStep({ onNext }: { onNext: (data: { name: string; address: stri
         icon="badge"
         iconBg={`linear-gradient(135deg, ${colors.primaryContainer}55, ${colors.tertiary}33)`}
         iconColor={colors.primary}
-        title="Create your ZK Identity"
-        subtitle="Your identity is private by default. Only you control what you share."
-      />      
+        title="Create your profile"
+        subtitle="No passwords, no crypto jargon — sign in with your fingerprint, face, or screen lock."
+      />
 
-      <Field label="Display name">
-        <input style={INPUT} value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Siphe M." autoFocus />
+      <Field label="Your name">
+        <input style={INPUT} value={name} onChange={e => { setName(e.target.value); setError(""); }} placeholder="e.g. Siphe M." autoFocus />
       </Field>
 
-      {!sessionAddress && (
-        <Field label="Stellar secret key" hint="Held in memory only — never stored. Derives your address automatically.">
-          <input style={INPUT} type="password" value={sk} onChange={e => { setSk(e.target.value); setConnError(""); }} placeholder="S..." autoComplete="off" />
-          {connError && <p style={{ margin: "4px 0 0", fontSize: 12, color: "#ef4444" }}>{connError}</p>}
-        </Field>
+      {error && (
+        <div style={{ background: "#ef444418", border: "1px solid #ef444440", borderRadius: 10, padding: "10px 14px", display: "flex", gap: 8 }}>
+          <MaterialIcon name="error" size={15} style={{ color: "#ef4444", flexShrink: 0, marginTop: 1 }} />
+          <p style={{ margin: 0, fontSize: 13, color: "#ef4444" }}>{error}</p>
+        </div>
       )}
 
-      {sessionAddress && (
-        <div style={{ background: `${colors.primary}15`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: colors.primary, display: "flex", alignItems: "center", gap: 8 }}>
-          <MaterialIcon name="check_circle" size={14} />
-          Connected: {sessionAddress.slice(0,8)}…{sessionAddress.slice(-6)}
-        </div>
+      {sessionAddress ? (
+        <>
+          <div style={{ background: `${colors.primary}15`, borderRadius: 10, padding: "10px 14px", fontSize: 12, color: colors.primary, display: "flex", alignItems: "center", gap: 8 }}>
+            <MaterialIcon name="check_circle" size={14} />
+            Signed in as {sessionAddress.slice(0, 6)}…{sessionAddress.slice(-4)}
+          </div>
+          <GradientButton onClick={submitConnected} disabled={!name.trim() || loading} size="lg">
+            {loading ? "Setting up…" : "Continue →"}
+          </GradientButton>
+        </>
+      ) : (
+        <>
+          <GradientButton onClick={submitPasskey} disabled={!name.trim() || loading || !passkeySupported} size="lg">
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              <MaterialIcon name="fingerprint" size={18} />
+              {loading ? "Setting up…" : storedPasskeyWallet ? "Sign in with fingerprint or face" : "Continue with fingerprint or face"}
+            </span>
+          </GradientButton>
+
+          {!passkeySupported && (
+            <p style={{ margin: 0, fontSize: 12, color: "#f59e0b", textAlign: "center" }}>
+              This browser doesn't support fingerprint sign-in. Use the wallet option below instead.
+            </p>
+          )}
+
+          {!showWallets ? (
+            <button type="button" onClick={() => setShowWallets(true)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: colors.outline, fontSize: 12, fontFamily: fontFamily.body, textAlign: "center", padding: 0 }}>
+              I already have a Stellar wallet
+            </button>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 16 }}>
+              <button type="button" onClick={submitFreighter} disabled={loading}
+                style={{ width: "100%", padding: "13px 16px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: colors.surfaceContainerHigh, cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left", color: colors.onSurface, fontSize: 14, fontWeight: 600, fontFamily: fontFamily.headline }}>
+                <MaterialIcon name="account_balance_wallet" size={20} style={{ color: colors.primary }} />
+                Connect Freighter / Lobstr
+              </button>
+              <Field label="Or paste a secret key" hint="Held in memory only — never stored. For testing.">
+                <input style={INPUT} type="password" value={sk} onChange={e => { setSk(e.target.value); setError(""); }} placeholder="S..." autoComplete="off" />
+              </Field>
+              {sk.trim().length >= 50 && (
+                <GradientButton onClick={submitSecretKey} disabled={!name.trim() || loading}>
+                  {loading ? "Connecting…" : "Connect →"}
+                </GradientButton>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <div style={{ background: `${colors.primaryContainer}15`, border: `1px solid ${colors.primaryContainer}30`, borderRadius: 12, padding: "12px 16px", display: "flex", gap: 12 }}>
         <MaterialIcon name="lock" size={16} style={{ color: colors.primary, flexShrink: 0, marginTop: 2 }} />
         <p style={{ color: colors.outline, fontSize: 13, margin: 0, lineHeight: 1.5 }}>
-          Your ZK identity is stored on Stellar. You can issue selective-disclosure proofs (e.g. "over 18") without revealing underlying data.
+          Your profile is private by default. Later, you can prove things about yourself (like "I'm over 18") without ever sharing your personal details.
         </p>
       </div>
-
-      <GradientButton onClick={submit} disabled={!name.trim() || loading} size="lg">
-        {loading ? "Creating identity…" : "Create Identity →"}
-      </GradientButton>
     </div>
   );
 }
@@ -394,9 +482,9 @@ function IdentityStep({ onNext }: { onNext: (data: { name: string; address: stri
 
 type RiskPreset = "Conservative" | "Balanced" | "Aggressive";
 const PRESETS: Record<RiskPreset, { drawdown: number; color: string; icon: string; desc: string }> = {
-  Conservative: { drawdown: 10, color: "#22c55e", icon: "shield",        desc: "Lower yields, maximum protection" },
-  Balanced:     { drawdown: 20, color: colors.primary, icon: "balance",    desc: "Good yields with managed risk" },
-  Aggressive:   { drawdown: 35, color: "#ef4444",  icon: "trending_up",  desc: "Higher yields, higher risk" },
+  Conservative: { drawdown: 10, color: "#22c55e", icon: "shield",        desc: "Steady growth, maximum protection" },
+  Balanced:     { drawdown: 20, color: colors.primary, icon: "balance",    desc: "Good growth with sensible limits" },
+  Aggressive:   { drawdown: 35, color: "#ef4444",  icon: "trending_up",  desc: "Faster growth, bigger swings" },
 };
 
 function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: RiskPreset }) => void }) {
@@ -419,14 +507,14 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
         iconBg={`linear-gradient(135deg, ${colors.secondaryContainer}55, ${colors.primary}22)`}
         iconColor={colors.primary}
         title="Create your Vault"
-        subtitle="Set guardrails that AI agents can never exceed."
+        subtitle="A vault is your savings pot. You set the safety limits — nothing can ever go past them."
       />
 
       <Field label="Vault name">
         <input style={INPUT} value={vaultName} onChange={e => setVaultName(e.target.value)} placeholder="e.g. My Savings Vault" autoFocus />
       </Field>
 
-      <Field label="Risk profile">
+      <Field label="How careful should we be with your money?">
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
           {(Object.entries(PRESETS) as [RiskPreset, typeof PRESETS[RiskPreset]][]).map(([key, p]) => (
             <button key={key} type="button" onClick={() => setPreset(key)}
@@ -437,7 +525,7 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
           ))}
         </div>
         <p style={{ fontSize: 12, color: colors.outline, margin: "4px 0 0" }}>
-          {PRESETS[preset].desc} · Max drawdown: {PRESETS[preset].drawdown}%
+          {PRESETS[preset].desc} · If your balance ever drops {PRESETS[preset].drawdown}%, everything stops automatically.
         </p>
       </Field>
 
@@ -451,7 +539,7 @@ function VaultStep({ onNext }: { onNext: (data: { vaultName: string; preset: Ris
 //Step 3 — Deposit 
 
 function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onSkip: () => void }) {
-  const { address, secretKey } = useWalletSession();
+  const { address, secretKey, walletType, invokeAsPasskeyWallet } = useWalletSession();
   const [amount,  setAmount]  = useState("10");
   const [asset,   setAsset]   = useState("XLM");
   const [loading, setLoading] = useState(false);
@@ -461,10 +549,22 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
     setLoading(true);
     setError("");
     try {
-      if (address && secretKey) {
+      const stroops = String(Math.round(Number(amount) * 1e7));
+      if (walletType === "passkey" && address) {
+        // Passkey wallets authorize via a WebAuthn ceremony, not a secret key
+        const info = await api.get<{ success: boolean; data: { vaultContractId: string | null } }>("/vault/info");
+        const contractId = info.data.vaultContractId;
+        if (!contractId) throw new Error("Vault not available right now. You can add money later from your dashboard.");
+        const args: ScValArgSpec[] = [
+          { type: "address", value: address },
+          { type: "i128",    value: stroops },
+        ];
+        const result = await invokeAsPasskeyWallet(contractId, "deposit", args);
+        if ("error" in result) throw new Error(result.error);
+      } else if (address && secretKey) {
         await api.post("/vault/deposit", {
           fromPublicKey:   address,
-          amount:          String(Math.round(Number(amount) * 1e7)),
+          amount:          stroops,
           signerSecretKey: secretKey,
         });
       } else {
@@ -472,7 +572,8 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
       }
       onNext(Number(amount));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Deposit failed");
+      console.error(e);
+      setError("We couldn't complete the deposit. You can skip this and add money later from your dashboard.");
     } finally {
       setLoading(false);
     }
@@ -484,8 +585,8 @@ function DepositStep({ onNext, onSkip }: { onNext: (amount: number) => void; onS
         icon="south_america"
         iconBg={`linear-gradient(135deg, ${colors.tertiary}33, ${colors.primaryContainer}44)`}
         iconColor={colors.tertiary}
-        title="Make your first deposit"
-        subtitle="Start earning yield instantly. You can always add more later."
+        title="Add your first money"
+        subtitle="Start small — you can add more or take it out anytime."
       />
 
       <Field label="Asset">
@@ -538,8 +639,8 @@ function ChooseStep({ onNext }: { onNext: (choice: "agent" | "stokvel" | "skip")
     {
       key:  "agent" as const,
       icon: "smart_toy",
-      title: "Deploy AI Agent",
-      desc:  "Let an AI agent manage your vault, execute yield strategies, and rebalance automatically — all within your guardrails.",
+      title: "Grow automatically",
+      desc:  "Let a smart assistant grow your savings for you. It works day and night, and can never go past the safety limits you set.",
       color: colors.primary,
     },
     {
@@ -648,11 +749,11 @@ function DoneStep({ data, onFinish }: {
 // Main Wizard 
 
 const STEPS = [
-  { label: "Identity",  icon: "badge"                  },
+  { label: "Profile",   icon: "badge"                  },
   { label: "Vault",     icon: "account_balance_wallet" },
-  { label: "Deposit",   icon: "payments"               },
-  { label: "Strategy",  icon: "explore"                },
-  { label: "Ready",     icon: "check_circle"           },
+  { label: "Add money", icon: "payments"               },
+  { label: "Grow",      icon: "explore"                },
+  { label: "Done",      icon: "check_circle"           },
 ];
 
 export const OnboardingFlow: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {

@@ -3,6 +3,7 @@ import { colors, fontFamily } from "../constants/theme";
 import { MaterialIcon, GradientButton, GradientText } from "../components/ui";
 import { useIsMobile } from "../hooks";
 import { useStokvel } from "../hooks/useStokvel";
+import { xlmToZar, formatZar } from "../lib/currency";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -275,6 +276,21 @@ export const StokvelPage: React.FC = () => {
         <StatCard icon="people"           label="Members"        value={`${config?.memberCount ?? 0} / ${config?.maxMembers ?? 0}`} sub="Active" />
         <StatCard icon="payments"         label="Distributed"    value={`${disbursedXlm} XLM`} sub="All time" />
         <StatCard icon="how_to_vote"      label="Active Votes"   value={`${proposals.filter(p => p.status === 0).length}`} sub="Proposals" />
+      </div>
+
+      {/* ── Earning while you wait ── */}
+      <div style={{ background: colors.surfaceContainerLow, border: `1px solid rgba(255,255,255,0.05)`, borderRadius: 16, padding: "16px 20px", display: "flex", alignItems: "center", gap: 16, marginBottom: 14, flexWrap: "wrap" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: `${colors.primary}18`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <MaterialIcon name="trending_up" size={22} style={{ color: colors.primary }} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ color: colors.onSurface, fontSize: 14, fontWeight: 600, margin: "0 0 2px", fontFamily: fontFamily.headline }}>Earning while you wait</p>
+          <p style={{ color: colors.outline, fontSize: 12, margin: 0 }}>Pooled money keeps growing in the vault until payout day — it never sits idle</p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: colors.primary, fontSize: 16, fontWeight: 700, margin: 0, fontFamily: fontFamily.headline }}>{formatZar(xlmToZar(Number(totalXlm) || 0))}</p>
+          <p style={{ color: colors.outline, fontSize: 11, margin: 0 }}>pooled &amp; working</p>
+        </div>
       </div>
 
       {/* ── Invite banner ── */}

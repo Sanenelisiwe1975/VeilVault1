@@ -120,6 +120,25 @@ export const StrategyPage: React.FC = () => {
             ))}
           </div>
 
+          {/* Live plain-language summary of the selected limits */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 20 }}>
+            {[
+              `Never lose more than ${(drawdown / 100).toFixed(0)}%`,
+              `Rebalance at ${(rebalance / 100).toFixed(0)}% drift`,
+              `Stop everything at ${(stopLoss / 100).toFixed(0)}%`,
+            ].map(pill => (
+              <span key={pill} style={{
+                display: "inline-flex", alignItems: "center", gap: 5,
+                background: `${colors.primary}14`, borderRadius: 20,
+                padding: "4px 11px", fontSize: 11, fontWeight: 600,
+                color: colors.primary, fontFamily: fontFamily.body,
+              }}>
+                <MaterialIcon name="shield" size={11} />
+                {pill}
+              </span>
+            ))}
+          </div>
+
           {[
             { label: "Maximum loss you'll tolerate", value: drawdown,  setter: setDrawdown,  max: 5000 },
             { label: "Auto-adjust sensitivity",       value: rebalance, setter: setRebalance, max: 2000 },

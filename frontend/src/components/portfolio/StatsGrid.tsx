@@ -1,6 +1,7 @@
 import React from "react";
 import { colors, fontFamily } from "../../constants/theme";
 import { MaterialIcon } from "../ui";
+import { xlmToZar, formatZar, formatXlm } from "../../lib/currency";
 
 //TVL Card 
 
@@ -12,15 +13,14 @@ interface TvlCardProps {
 export const TvlCard: React.FC<TvlCardProps> = ({ totalAssets }) => {
   const bars = [40, 55, 45, 60, 50, 70, 65, 75, 80, 90];
   const hasReal = !!totalAssets && totalAssets !== "0";
-  const xlm     = hasReal ? (Number(totalAssets) / 1e7).toLocaleString("en-ZA", { maximumFractionDigits: 2 }) : "14,290,042";
-  const unit    = hasReal ? "XLM" : "$";
+  const xlm     = Number(totalAssets ?? 0) / 1e7;
   const label   = hasReal ? "Your Vault" : "Global Aggregate";
 
   return (
     <div style={{ background: colors.surfaceContainerLow, borderRadius: 16, padding: 28 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b", textTransform: "uppercase" as const, letterSpacing: "0.15em" }}>
-          Total Value Locked
+          {hasReal ? "In your vault" : "Total Value Locked"}
         </span>
         <span style={{ fontSize: 9, fontWeight: 700, background: `${colors.secondary}20`, color: colors.secondary, padding: "3px 8px", borderRadius: 2, textTransform: "uppercase" as const, letterSpacing: "0.10em" }}>
           {label}
@@ -28,12 +28,11 @@ export const TvlCard: React.FC<TvlCardProps> = ({ totalAssets }) => {
       </div>
 
       <div style={{ fontFamily: fontFamily.headline, fontSize: 48, fontWeight: 900, color: "#fff", letterSpacing: "-0.04em", lineHeight: 1, marginBottom: 6 }}>
-        {hasReal ? "" : "$"}{xlm}
-        {hasReal && <span style={{ color: colors.onSurfaceVariant, fontSize: 22, marginLeft: 8 }}>XLM</span>}
+        {hasReal ? formatZar(xlmToZar(xlm)) : "$14,290,042"}
         {!hasReal && <span style={{ color: colors.onSurfaceVariant, fontSize: 36 }}>.80</span>}
       </div>
-      {hasReal && <p style={{ fontSize: 12, color: colors.outline, margin: "0 0 20px" }}>Live from Stellar testnet</p>}
-      {!hasReal && <p style={{ fontSize: 12, color: colors.outline, margin: "0 0 20px" }}>Demo data — connect wallet to see real values</p>}
+      {hasReal && <p style={{ fontSize: 12, color: colors.outline, margin: "0 0 20px" }}>{formatXlm(xlm)} · live on the Stellar test network</p>}
+      {!hasReal && <p style={{ fontSize: 12, color: colors.outline, margin: "0 0 20px" }}>Demo data — sign in to see your real balance</p>}
 
       <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 60 }}>
         {bars.map((h, i) => (
@@ -53,13 +52,15 @@ interface NetWorthCardProps {
 
 export const NetWorthCard: React.FC<NetWorthCardProps> = ({ netValueXlm, yieldXlm }) => {
   const hasReal  = netValueXlm !== undefined && netValueXlm > 0;
-  const display  = hasReal ? `${netValueXlm!.toFixed(2)} XLM` : "$842,104.10";
-  const subtitle = hasReal ? `Yield earned: ${yieldXlm?.toFixed(4) ?? "0"} XLM` : "Available across 4 segregated vaults";
+  const display  = hasReal ? formatZar(xlmToZar(netValueXlm!)) : "$842,104.10";
+  const subtitle = hasReal
+    ? <>Growing — earned <strong style={{ color: "#fff" }}>+{formatZar(xlmToZar(yieldXlm ?? 0))}</strong> so far</>
+    : "Available across 4 segregated vaults";
 
   const rows = hasReal
     ? [
-        { name: "Vault balance",  value: `${netValueXlm!.toFixed(2)} XLM`, pct: 80 },
-        { name: "Yield earned",   value: `${yieldXlm?.toFixed(4) ?? "0"} XLM`, pct: Math.min(100, (yieldXlm ?? 0) / Math.max(netValueXlm!, 0.0001) * 500) },
+        { name: "Savings balance", value: formatXlm(netValueXlm!), pct: 80 },
+        { name: "Growth earned",   value: formatXlm(yieldXlm ?? 0, 4), pct: Math.min(100, (yieldXlm ?? 0) / Math.max(netValueXlm!, 0.0001) * 500) },
       ]
     : [
         { name: "ETH Delta Strategy", value: "$428k", pct: 65 },
@@ -69,12 +70,18 @@ export const NetWorthCard: React.FC<NetWorthCardProps> = ({ netValueXlm, yieldXl
   return (
     <div style={{ background: `linear-gradient(145deg, ${colors.primaryContainer}aa, ${colors.secondaryContainer}88)`, borderRadius: 16, padding: 24 }}>
       <span style={{ fontSize: 10, fontWeight: 700, color: `${colors.primaryFixed}99`, textTransform: "uppercase" as const, letterSpacing: "0.15em", display: "block", marginBottom: 8 }}>
-        Net Worth
+        {hasReal ? "Total savings" : "Net Worth"}
       </span>
       <div style={{ fontFamily: fontFamily.headline, fontSize: 32, fontWeight: 900, color: "#fff", letterSpacing: "-0.03em", marginBottom: 6 }}>
         {display}
       </div>
-      <p style={{ fontSize: 12, color: `${colors.primaryFixed}80`, marginBottom: 20 }}>{subtitle}</p>
+      <p style={{ fontSize: 12, color: `${colors.primaryFixed}80`, marginBottom: hasReal ? 12 : 20 }}>{subtitle}</p>
+      {hasReal && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.14)", borderRadius: 20, padding: "5px 12px", fontSize: 12, color: "#fff", marginBottom: 20 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#6EEFC0", display: "inline-block" }} />
+          Your money is working
+        </div>
+      )}
 
       {rows.map(row => (
         <div key={row.name} style={{ marginBottom: 14 }}>
@@ -106,10 +113,10 @@ interface StatTile {
 }
 
 const DEMO_STATS: StatTile[] = [
-  { icon: "trending_up",     label: "30d Yield",        value: "+4.82%",  color: colors.secondary },
-  { icon: "account_balance", label: "Active Positions", value: "3",       color: colors.primary },
-  { icon: "verified_user",   label: "Spending Limits",       value: "Healthy", color: "#10B981" },
-  { icon: "hub",             label: "Network",          value: "Testnet", color: "#0EA5E9" },
+  { icon: "trending_up",     label: "Growth (30 days)", value: "+4.82%",  color: colors.secondary },
+  { icon: "account_balance", label: "Active plans",     value: "3",       color: colors.primary },
+  { icon: "verified_user",   label: "Safety controls",  value: "Active",  color: "#10B981" },
+  { icon: "hub",             label: "Network",          value: "Stellar (test)", color: "#0EA5E9" },
 ];
 
 interface StatsGridProps {
@@ -121,11 +128,11 @@ interface StatsGridProps {
 
 export const StatsGrid: React.FC<StatsGridProps> = ({ yieldXlm, isPaused }) => {
   const stats: StatTile[] = DEMO_STATS.map(tile => {
-    if (tile.label === "30d Yield" && yieldXlm !== undefined) {
-      return { ...tile, label: "Yield Earned", value: `${yieldXlm.toFixed(4)} XLM` };
+    if (tile.label === "Growth (30 days)" && yieldXlm !== undefined) {
+      return { ...tile, label: "Earned so far", value: formatZar(xlmToZar(yieldXlm)) };
     }
-    if (tile.label === "Spending Limits" && isPaused !== undefined) {
-      return { ...tile, value: isPaused ? "Paused" : "Healthy", color: isPaused ? "#EF4444" : tile.color };
+    if (tile.label === "Safety controls" && isPaused !== undefined) {
+      return { ...tile, value: isPaused ? "Paused" : "Active", color: isPaused ? "#EF4444" : tile.color };
     }
     return tile;
   });

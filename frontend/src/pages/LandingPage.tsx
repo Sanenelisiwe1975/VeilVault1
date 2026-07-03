@@ -736,6 +736,13 @@ const Footer: React.FC = () => {
       borderTop: `1px solid ${colors.surfaceContainerHighest}50`,
       background: colors.surface,
       padding: isMobile ? "32px 24px" : "40px 10%",
+    }}>
+    <p style={{ fontSize: 11, color: "#64748b", lineHeight: 1.6, maxWidth: 640, margin: "0 auto 28px", textAlign: "center" }}>
+      Growth rates shown are estimates based on current performance and are not guaranteed.
+      Balances are held in digital assets; their Rand value moves with exchange rates.
+      VeilVault is not a bank and deposits are not insured.
+    </p>
+    <div style={{
       display: "flex", flexDirection: isMobile ? "column" : "row",
       alignItems: isMobile ? "flex-start" : "center",
       justifyContent: "space-between",
@@ -758,6 +765,7 @@ const Footer: React.FC = () => {
       <p style={{ fontSize: 11, color: "#334155" }}>
         © 2026 Veil Vaults. Cryptographic Excellence.
       </p>
+    </div>
     </footer>
   );
 };

@@ -25,15 +25,30 @@ export function isPasskeySupported(): boolean {
   return browserSupportsWebAuthn();
 }
 
+/** Sentinel error message: the API server didn't answer with JSON — it's down,
+ *  not running, or the frontend is deployed without VITE_API_URL so /api/*
+ *  falls through to index.html. UI code maps this to a friendly message. */
+export const SERVER_UNREACHABLE = "VV_SERVER_UNREACHABLE";
+
 async function postJSON<T>(apiBase: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${apiBase}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(SERVER_UNREACHABLE);
+  }
+  let data: { error?: string };
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(SERVER_UNREACHABLE);
+  }
   if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-  return data;
+  return data as T;
 }
 
 /** Register a brand-new passkey wallet. Returns the deployed wallet address + session token. */

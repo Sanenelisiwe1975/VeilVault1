@@ -23,7 +23,8 @@ const log = createChildLogger('auth');
 const router = Router();
 
 const networkPassphrase = STELLAR_NETWORKS[config.STELLAR_NETWORK].passphrase;
-const signingSecret = config.SEP10_SIGNING_SECRET_KEY ?? config.ADMIN_SECRET_KEY;
+// || not ??: an empty string in .env (SEP10_SIGNING_SECRET_KEY=) must also fall back
+const signingSecret = config.SEP10_SIGNING_SECRET_KEY || config.ADMIN_SECRET_KEY;
 const serverKeypair = Keypair.fromSecret(signingSecret);
 
 const CHALLENGE_TIMEOUT_SECS = 300; // 5 min to complete the sign

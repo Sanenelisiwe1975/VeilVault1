@@ -76,7 +76,7 @@ function Dashboard({ onHome }: { onHome: () => void }) {
   const renderPage = () => {
     if (showVaultDetail) return <VaultDetailPage />;
     switch (activeNav) {
-      case "Portfolio":  return <DashboardRouter />;
+      case "Portfolio":  return <DashboardRouter onNavigate={handleNav} />;
       case "Vaults":     return <VaultsBrowserPage onOpenVault={() => setShowVaultDetail(true)} />;
       case "Stokvel":    return <StokvelPage />;
       case "Identity":   return <IdentityPage />;
