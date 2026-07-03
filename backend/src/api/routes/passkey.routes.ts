@@ -32,7 +32,9 @@ router.post('/register/options', async (req: Request, res: Response) => {
     res.json({ sessionId, options });
   } catch (err) {
     log.error({ err: (err as Error).message }, 'Failed to start passkey registration');
-    res.status(500).json({ error: 'Failed to start passkey registration' });
+    // Config errors carry an actionable message ("not configured on this
+    // server") — pass it through so the UI can explain instead of guessing.
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -66,7 +68,7 @@ router.post('/login/options', async (_req: Request, res: Response) => {
     res.json({ sessionId, options });
   } catch (err) {
     log.error({ err: (err as Error).message }, 'Failed to start passkey login');
-    res.status(500).json({ error: 'Failed to start passkey login' });
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 

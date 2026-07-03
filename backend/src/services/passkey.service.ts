@@ -228,10 +228,26 @@ async function registryUpdateCounter(credentialIdHash: Buffer, newCounter: numbe
 
 // ─── Registration (sign up with a passkey) ─────────────────────────────────
 
+/**
+ * Throw BEFORE the user is asked for a fingerprint when this server cannot
+ * possibly complete the flow — a misconfigured server should surface as an
+ * instant, clear error, not a biometric ceremony followed by an opaque
+ * failure.
+ */
+function assertPasskeyConfigured(forRegistration: boolean): void {
+  if (!config.PASSKEY_REGISTRY_CONTRACT_ID) {
+    throw new Error('Passkey sign-in is not configured on this server (PASSKEY_REGISTRY_CONTRACT_ID is missing)');
+  }
+  if (forRegistration && !cachedWasmHash && !fs.existsSync(SMART_WALLET_WASM_PATH)) {
+    throw new Error('Passkey sign-up is not configured on this server (set SMART_WALLET_WASM_HASH or build contracts/smart-wallet)');
+  }
+}
+
 export async function startPasskeyRegistration(userName: string): Promise<{
   sessionId: string;
   options: Awaited<ReturnType<typeof generateRegistrationOptions>>;
 }> {
+  assertPasskeyConfigured(true);
   purgeExpired();
   const options = await generateRegistrationOptions({
     rpName: config.WEBAUTHN_RP_NAME,
@@ -315,6 +331,7 @@ export async function startPasskeyLogin(): Promise<{
   sessionId: string;
   options: Awaited<ReturnType<typeof generateAuthenticationOptions>>;
 }> {
+  assertPasskeyConfigured(false);
   purgeExpired();
   // No allowCredentials: the browser shows every discoverable passkey
   // registered for this RP ID, so the user doesn't need to know or store

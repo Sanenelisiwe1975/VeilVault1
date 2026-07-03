@@ -30,6 +30,9 @@ function friendlyMessage(raw: string): string {
   if (lower.includes("securityerror") || lower.includes("relying party") || lower.includes("invalid domain")) {
     return "Sign-in isn't set up for this web address yet. Please contact support.";
   }
+  if (lower.includes("not configured on this server")) {
+    return "Sign-in isn't fully set up on this server yet. If you're the developer: the backend is missing its passkey configuration — check the server logs.";
+  }
   if (lower.includes("failed to start passkey") || lower.includes("http 5")) {
     return "The server had a problem starting sign-in. Please try again shortly.";
   }
