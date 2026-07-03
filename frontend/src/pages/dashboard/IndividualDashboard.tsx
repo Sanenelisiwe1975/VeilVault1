@@ -15,20 +15,26 @@ const QUICK_ACTIONS: { icon: string; label: string; nav: NavItem }[] = [
   { icon: "security",    label: "Safety",    nav: "Security" },
 ];
 
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+}
+
 export default function IndividualDashboard({ onNavigate }: { onNavigate?: (nav: NavItem) => void }) {
   const isMobile = useIsMobile();
   const { vault, vaultExists } = useVault();
+  const name = typeof window !== "undefined" ? localStorage.getItem("vv_name") : null;
 
   return (
     <div style={{ padding: isMobile ? 16 : 28, display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Page title */}
+      {/* Greeting */}
       <div>
         <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#fff", fontFamily: fontFamily.headline, letterSpacing: "-0.02em" }}>
-          My Portfolio
+          {greeting()}{name ? `, ${name.split(" ")[0]}` : ""} 👋
         </h1>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: colors.outline }}>
-          Personal assets, inheritance planning &amp; digital legacy
+          Here's how your money is doing
         </p>
       </div>
 
@@ -53,6 +59,29 @@ export default function IndividualDashboard({ onNavigate }: { onNavigate?: (nav:
             </button>
           ))}
         </div>
+      )}
+
+      {/* Privacy notice */}
+      <div style={{ background: `${colors.primaryContainer}15`, border: `1px solid ${colors.primaryContainer}30`, borderRadius: 14, padding: "13px 16px", display: "flex", gap: 12, alignItems: "flex-start" }}>
+        <MaterialIcon name="shield" size={17} style={{ color: colors.primary, flexShrink: 0, marginTop: 1 }} />
+        <span style={{ fontSize: 13, color: colors.onSurfaceVariant, lineHeight: 1.55 }}>
+          Your transactions are private by default. Nobody can see your balances except you.
+        </span>
+      </div>
+
+      {/* Safety controls shortcut */}
+      {onNavigate && (
+        <button type="button" onClick={() => onNavigate("Security")}
+          style={{ background: colors.surfaceContainerLow, border: `1px solid rgba(255,255,255,0.07)`, borderRadius: 14, padding: "14px 16px", cursor: "pointer", display: "flex", alignItems: "center", gap: 12, textAlign: "left" }}>
+          <div style={{ width: 40, height: 40, borderRadius: 11, background: "#10B98118", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <MaterialIcon name="verified_user" size={20} style={{ color: "#10B981" }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: colors.onSurface, fontFamily: fontFamily.headline }}>Safety controls active</p>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: colors.outline }}>Max drop 50% · Position cap 70% · Enforced on-chain, 24/7</p>
+          </div>
+          <MaterialIcon name="chevron_right" size={18} style={{ color: colors.outline }} />
+        </button>
       )}
 
       {/* Stats */}

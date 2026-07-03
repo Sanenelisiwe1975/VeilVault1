@@ -367,6 +367,7 @@ function IdentityStep({ onNext }: { onNext: (data: { name: string; address: stri
         // Non-fatal — identity registration can retry later
       }
     }
+    localStorage.setItem("vv_name", name.trim()); // dashboard greeting
     setLoading(false);
     onNext({ name: name.trim(), address: addr });
   };
