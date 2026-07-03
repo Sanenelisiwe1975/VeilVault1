@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createServer } from './api/server';
 import { monitoringService } from './services/monitoring.service';
+import { prewarmSmartWalletWasm } from './services/passkey.service';
 import { config } from './config';
 import { logger } from './utils/logger';
 
@@ -35,6 +36,10 @@ async function main(): Promise<void> {
     }
     process.exit(1);
   });
+
+  // Upload the smart-wallet WASM in the background (if not already cached) so
+  // the first passkey sign-up doesn't pay for it inside the user's wait.
+  prewarmSmartWalletWasm();
 
   // Start vault health monitoring
   if (config.VAULT_CONTRACT_ID) {

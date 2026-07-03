@@ -30,7 +30,6 @@ import { MaterialIcon }  from "./components/ui";
 
 import type { NavItem } from "./types";
 
-// Connect bar 
 function ConnectBar() {
   const { isConnected, address, disconnect } = useWalletSession();
   const [showModal, setShowModal] = useState(false);

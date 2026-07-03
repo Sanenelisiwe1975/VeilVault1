@@ -87,23 +87,47 @@ function newSessionId(): string {
 }
 
 const SMART_WALLET_WASM_PATH = path.resolve(__dirname, '../../../contracts/target/wasm32-unknown-unknown/release/smart_wallet.optimized.wasm');
+const WASM_HASH_CACHE_PATH   = path.resolve(__dirname, '../../.smart-wallet-wasm-hash');
+
+function readWasmHashCache(): Buffer | null {
+  try {
+    const hex = fs.readFileSync(WASM_HASH_CACHE_PATH, 'utf8').trim();
+    return /^[0-9a-f]{64}$/i.test(hex) ? Buffer.from(hex, 'hex') : null;
+  } catch {
+    return null;
+  }
+}
 
 let cachedWasmHash: Buffer | null = config.SMART_WALLET_WASM_HASH
   ? Buffer.from(config.SMART_WALLET_WASM_HASH, 'hex')
-  : null;
+  : readWasmHashCache();
 
-/** Upload the smart-wallet WASM once (idempotent) and cache its hash for the process lifetime. */
+/** Upload the smart-wallet WASM once (idempotent) and cache its hash for the process lifetime (and on disk across restarts). */
 async function ensureWasmUploaded(): Promise<Buffer> {
   if (cachedWasmHash) return cachedWasmHash;
 
   const wasm = fs.readFileSync(SMART_WALLET_WASM_PATH);
   const { wasmHash } = await getStellarClient().uploadWasm(wasm, config.ADMIN_SECRET_KEY);
   cachedWasmHash = wasmHash;
+  try { fs.writeFileSync(WASM_HASH_CACHE_PATH, wasmHash.toString('hex')); } catch { /* cache is best-effort */ }
   log.warn(
     { wasmHash: wasmHash.toString('hex') },
     'smart-wallet WASM uploaded at runtime — set SMART_WALLET_WASM_HASH to skip this on future restarts',
   );
   return wasmHash;
+}
+
+/**
+ * Kick off the WASM upload in the background at server startup so the first
+ * user to register a passkey doesn't pay the ~10s upload inside their sign-up.
+ * No-op when the hash is already known (env var or disk cache) or the WASM
+ * file isn't present on this machine.
+ */
+export function prewarmSmartWalletWasm(): void {
+  if (cachedWasmHash || !fs.existsSync(SMART_WALLET_WASM_PATH)) return;
+  ensureWasmUploaded().catch(err =>
+    log.warn({ err: (err as Error).message }, 'Smart-wallet WASM prewarm failed — will retry on first registration'),
+  );
 }
 
 // ─── passkey-registry contract calls ───────────────────────────────────────
@@ -345,7 +369,18 @@ export async function finishPasskeyLogin(
     throw new Error('Passkey login could not be verified');
   }
 
-  await registryUpdateCounter(credentialIdHash, verification.authenticationInfo.newCounter);
+  // Platform passkeys (iOS/Android/Windows Hello) always report counter 0, so
+  // in the common case there is nothing to persist — skip the ~7s on-chain
+  // update_counter transaction entirely. When a counter DOES advance (some
+  // hardware keys), persist it in the background rather than making the user
+  // wait: the assertion is already verified, the counter is only a
+  // clone-detection heuristic for FUTURE logins.
+  const newCounter = verification.authenticationInfo.newCounter;
+  if (newCounter > record.counter) {
+    registryUpdateCounter(credentialIdHash, newCounter).catch(err =>
+      log.warn({ err: (err as Error).message }, 'Background counter update failed'),
+    );
+  }
 
   log.info({ walletAddress: record.wallet }, 'Passkey login verified');
 
@@ -468,7 +503,15 @@ async function resolveAuthorizingSignature(
   if (!verification.verified) {
     throw new Error('Authorization signature invalid');
   }
-  await registryUpdateCounter(authCredentialIdHash, verification.authenticationInfo.newCounter);
+  // Same counter rationale as finishPasskeyLogin — but here a real admin-signed
+  // transaction follows immediately, so when a counter does advance we must
+  // await (a background tx from the same admin account would collide on the
+  // sequence number). Platform passkeys always report 0, so this await is
+  // skipped in the common case.
+  const newAuthCounter = verification.authenticationInfo.newCounter;
+  if (newAuthCounter > authRecord.counter) {
+    await registryUpdateCounter(authCredentialIdHash, newAuthCounter);
+  }
 
   const signatureScVal = buildWebAuthnSignatureScVal({
     signerIndex: authRecord.signerIndex,

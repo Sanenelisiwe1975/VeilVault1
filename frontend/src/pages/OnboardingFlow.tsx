@@ -433,9 +433,15 @@ function IdentityStep({ onNext }: { onNext: (data: { name: string; address: stri
           <GradientButton onClick={submitPasskey} disabled={!name.trim() || loading || !passkeySupported} size="lg">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <MaterialIcon name="fingerprint" size={18} />
-              {loading ? "Setting up…" : storedPasskeyWallet ? "Sign in with fingerprint or face" : "Continue with fingerprint or face"}
+              {loading ? (storedPasskeyWallet ? "Signing you in…" : "Creating your account…") : storedPasskeyWallet ? "Sign in with fingerprint or face" : "Continue with fingerprint or face"}
             </span>
           </GradientButton>
+
+          {loading && !storedPasskeyWallet && (
+            <p style={{ margin: 0, fontSize: 12, color: colors.outline, textAlign: "center" }}>
+              Setting up your secure wallet — this one-time step takes about 30 seconds.
+            </p>
+          )}
 
           {!passkeySupported && (
             <p style={{ margin: 0, fontSize: 12, color: "#f59e0b", textAlign: "center" }}>

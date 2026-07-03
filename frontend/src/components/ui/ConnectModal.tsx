@@ -149,8 +149,14 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
               disabled={loading || !passkeySupported || (!storedPasskeyWallet && !userName.trim())}
               size="lg"
             >
-              {loading ? "Signing you in…" : "Continue →"}
+              {loading ? (storedPasskeyWallet ? "Signing you in…" : "Creating your account…") : "Continue →"}
             </GradientButton>
+
+            {loading && !storedPasskeyWallet && (
+              <p style={{ margin: 0, fontSize: 12, color: colors.outline, textAlign: "center" as const }}>
+                Setting up your secure wallet — this one-time step takes about 30 seconds.
+              </p>
+            )}
 
             {!passkeySupported && (
               <p style={{ margin: 0, fontSize: 12, color: "#f59e0b", textAlign: "center" as const }}>
@@ -306,7 +312,7 @@ export const ConnectModal: React.FC<Props> = ({ onClose, onConnected, required }
             </div>
 
             <GradientButton onClick={() => handlePasskeyRegister()} disabled={!userName.trim() || loading} size="lg">
-              {loading ? "Creating wallet…" : "Create Passkey →"}
+              {loading ? "Creating wallet… (~30 sec)" : "Create Passkey →"}
             </GradientButton>
           </div>
         )}
