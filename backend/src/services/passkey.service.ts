@@ -321,8 +321,36 @@ export async function finishPasskeyRegistration(
 
   log.info({ walletAddress: contractAddress, credentialId: credential.id }, 'Passkey wallet registered');
 
+  // Give the new wallet starter XLM in the background so the user's first
+  // deposit doesn't fail with an empty balance (testnet only). Not awaited —
+  // it completes seconds after this response, well before a human can reach
+  // the deposit screen.
+  fundNewWalletWithStarterXlm(contractAddress);
+
   const token = issuePasskeySessionToken(contractAddress);
   return { walletAddress: contractAddress, token };
+}
+
+// Deterministic Stellar Asset Contract for native XLM on TESTNET.
+const NATIVE_XLM_SAC_TESTNET = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+const STARTER_XLM_STROOPS = 100n * 10_000_000n; // 100 XLM
+
+function fundNewWalletWithStarterXlm(walletAddress: string): void {
+  if (config.STELLAR_NETWORK !== 'testnet') return;
+  const admin = Keypair.fromSecret(config.ADMIN_SECRET_KEY).publicKey();
+  getStellarClient()
+    .invokeContract(
+      NATIVE_XLM_SAC_TESTNET,
+      'transfer',
+      [
+        new Address(admin).toScVal(),
+        new Address(walletAddress).toScVal(),
+        nativeToScVal(STARTER_XLM_STROOPS, { type: 'i128' }),
+      ],
+      config.ADMIN_SECRET_KEY,
+    )
+    .then(() => log.info({ walletAddress }, 'New wallet funded with starter XLM'))
+    .catch(err => log.warn({ walletAddress, err: (err as Error).message }, 'Starter XLM funding failed'));
 }
 
 // ─── Login (sign in with an existing passkey) ──────────────────────────────
