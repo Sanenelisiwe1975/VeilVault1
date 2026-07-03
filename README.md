@@ -18,6 +18,7 @@ These are designed but intentionally **not** in the current UI — nothing ships
 | **Conversational AI assistant** ("How much have I earned?", "Move R 200 to the safest strategy") | LLM endpoint over the existing agent API, reading real vault balances and executing moves through the guardrailed vault contract, with an x402 micro-payment per action | Designed — backend primitives (agent API, x402, guardrails) already live |
 | **Backup-device nudge at sign-up** ("protect against a lost phone") | Surfaces the existing multi-signer smart-wallet `add_signer` flow (already working end-to-end, currently in Settings) as a skippable onboarding step | UX placement only — feature is live |
 | **Recovery contact (email / phone)** | Collected at sign-up for account-recovery and alerts — never a login credential (sign-in stays passkey-only) | Designed |
+| **Broader wallet connection (Stellar Wallets Kit)** | Replaces the current hand-rolled Freighter/Lobstr connection code with the maintained [Stellar Wallets Kit](https://github.com/Creit-Tech/Stellar-Wallets-Kit) toolkit, adding support for every Stellar-compatible wallet without VeilVault maintaining its own per-wallet integration code | Designed — next milestone |
 
 ---
 
